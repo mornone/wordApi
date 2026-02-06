@@ -64,8 +64,23 @@ namespace WordApiService
             Log($"服务启动 - 端口: {Port}, 任务目录: {TaskDirectory}");
             Log($"监听地址: http://0.0.0.0:{Port} (可通过局域网访问)");
 
-            // 启动后台处理线程
-            _ = System.Threading.Tasks.Task.Run(() => ProcessQueue(_cts.Token));
+            // 启动后台处理线程（必须使用 STA 线程，Word COM 需要）
+            Log("准备启动 ProcessQueue 后台线程...");
+            var processThread = new Thread(() =>
+            {
+                try
+                {
+                    ProcessQueue(_cts.Token);
+                }
+                catch (Exception ex)
+                {
+                    Log($"ProcessQueue 线程异常: {ex.Message}");
+                }
+            });
+            processThread.SetApartmentState(ApartmentState.STA);
+            processThread.IsBackground = true;
+            processThread.Start();
+            Log("ProcessQueue 后台线程已提交启动");
 
             // 启动 HTTP 服务
             var args = new string[] { };
@@ -78,12 +93,15 @@ namespace WordApiService
             _app.MapPost("/wordapi", async (HttpContext context) =>
             {
                 var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                Log($"POST /wordapi - {clientIp} - 收到请求, ContentType: {context.Request.ContentType}");
                 
                 try
                 {
                     // 检查是否是文件上传请求
                     if (context.Request.HasFormContentType && context.Request.Form.Files.Count > 0)
                     {
+                        Log($"POST /wordapi - {clientIp} - 检测到文件上传, 文件数量: {context.Request.Form.Files.Count}");
+                        
                         var file = context.Request.Form.Files["InputFile"];
                         if (file == null || file.Length == 0)
                         {
@@ -93,16 +111,22 @@ namespace WordApiService
                             return;
                         }
 
+                        Log($"POST /wordapi - {clientIp} - 文件名: {file.FileName}, 大小: {file.Length} bytes");
+
                         // 保存上传的文件
                         var taskId = Guid.NewGuid().ToString();
                         var uploadDir = Path.Combine(TaskDirectory, "uploads");
                         Directory.CreateDirectory(uploadDir);
                         
                         var inputFilePath = Path.Combine(uploadDir, $"{taskId}_{file.FileName}");
+                        Log($"POST /wordapi - {clientIp} - 保存文件到: {inputFilePath}");
+                        
                         using (var stream = new FileStream(inputFilePath, FileMode.Create))
                         {
                             await file.CopyToAsync(stream);
                         }
+
+                        Log($"POST /wordapi - {clientIp} - 文件保存成功");
 
                         var requestTask = new WordTask
                         {
@@ -115,7 +139,7 @@ namespace WordApiService
                         _taskQueue.Enqueue(requestTask);
                         _taskStatus[requestTask.TaskId] = "queued";
 
-                        Log($"POST /wordapi - {clientIp} - 200 OK: Task created - TaskId: {requestTask.TaskId}, Input: {file.FileName}");
+                        Log($"POST /wordapi - {clientIp} - 200 OK: Task created - TaskId: {requestTask.TaskId}, Input: {file.FileName}, 队列长度: {_taskQueue.Count}");
                         await context.Response.WriteAsJsonAsync(new { status = "queued", taskId = requestTask.TaskId });
                     }
                     else
@@ -232,20 +256,34 @@ namespace WordApiService
 
         private void ProcessQueue(CancellationToken token)
         {
+            Log("ProcessQueue 线程已启动 (STA 模式)");
+            
             while (!token.IsCancellationRequested)
             {
                 if (_taskQueue.TryDequeue(out var task))
                 {
                     _taskStatus[task.TaskId] = "running";
-                    Log($"开始处理任务: {task.TaskId}");
+                    Log($"开始处理任务: {task.TaskId}, 输入文件: {task.InputFile}");
                     
                     try
                     {
                         Microsoft.Office.Interop.Word.Application word = new();
                         word.Visible = false;
 
-                        var pv = word.ProtectedViewWindows.Open(task.InputFile);
-                        var doc = pv.Edit();
+                        Document doc;
+                        
+                        // 尝试使用受保护视图打开，如果失败则直接打开
+                        try
+                        {
+                            var pv = word.ProtectedViewWindows.Open(task.InputFile);
+                            doc = pv.Edit();
+                            Log($"任务 {task.TaskId}: 从受保护视图打开文件");
+                        }
+                        catch
+                        {
+                            doc = word.Documents.Open(task.InputFile);
+                            Log($"任务 {task.TaskId}: 直接打开文件");
+                        }
 
                         if (EnableRefresh)
                         {
@@ -253,6 +291,10 @@ namespace WordApiService
                             doc.Fields.Update();
                             foreach (TableOfContents toc in doc.TablesOfContents)
                                 toc.Update();
+                        }
+                        else
+                        {
+                            Log($"任务 {task.TaskId}: 跳过目录刷新（配置已禁用）");
                         }
 
                         Log($"任务 {task.TaskId}: 保存 DOCX");
@@ -262,6 +304,10 @@ namespace WordApiService
                         {
                             Log($"任务 {task.TaskId}: 导出 PDF");
                             doc.ExportAsFixedFormat(task.OutputPdf, WdExportFormat.wdExportFormatPDF);
+                        }
+                        else
+                        {
+                            Log($"任务 {task.TaskId}: 跳过 PDF 导出（配置已禁用）");
                         }
 
                         doc.Close(false);
