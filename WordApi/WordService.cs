@@ -57,8 +57,8 @@ namespace WordApiService
 
         private string GetFileUrl(string filePath)
         {
-            // 将文件路径转换为 HTTP URL
-            // 例如: E:\...\outputs\2026\0206\xxx.docx -> http://localhost:5000/files/2026/0206/xxx.docx
+            // 将文件路径转换为相对 URL 路径
+            // 例如: E:\...\outputs\2026\0206\xxx.docx -> /files/2026/0206/xxx.docx
             try
             {
                 var relativePath = Path.GetRelativePath(OutputDirectory, filePath);
@@ -68,7 +68,7 @@ namespace WordApiService
                     var year = parts[0];
                     var day = parts[1];
                     var filename = parts[2];
-                    return $"http://localhost:{Port}/files/{year}/{day}/{filename}";
+                    return $"/files/{year}/{day}/{filename}";
                 }
             }
             catch
@@ -418,28 +418,62 @@ namespace WordApiService
                     
                     try
                     {
-                        // 创建 Word 应用程序实例
+                        // 创建 Word 应用程序实例（带重试）
                         Log($"任务 {task.TaskId}: 创建 Word 应用程序实例");
-                        word = new Microsoft.Office.Interop.Word.Application();
-                        word.Visible = false;
-                        word.DisplayAlerts = WdAlertLevel.wdAlertsNone;
                         
-                        Log($"任务 {task.TaskId}: Word 应用程序已创建");
+                        int retryCount = 0;
+                        int maxRetries = 3;
+                        Exception? lastException = null;
+                        
+                        while (retryCount < maxRetries && word == null)
+                        {
+                            try
+                            {
+                                word = new Microsoft.Office.Interop.Word.Application();
+                                word.Visible = false;
+                                word.DisplayAlerts = WdAlertLevel.wdAlertsNone;
+                                Log($"任务 {task.TaskId}: Word 应用程序已创建");
+                            }
+                            catch (Exception ex)
+                            {
+                                lastException = ex;
+                                retryCount++;
+                                if (retryCount < maxRetries)
+                                {
+                                    Log($"任务 {task.TaskId}: Word 创建失败，重试 {retryCount}/{maxRetries}");
+                                    Thread.Sleep(1000);
+                                }
+                            }
+                        }
+                        
+                        if (word == null)
+                        {
+                            throw new Exception($"无法创建 Word 应用程序实例: {lastException?.Message}");
+                        }
 
-                        // 尝试使用受保护视图打开，如果失败则直接打开
-                        try
-                        {
-                            Log($"任务 {task.TaskId}: 尝试从受保护视图打开文件");
-                            var pv = word.ProtectedViewWindows.Open(task.InputFile);
-                            doc = pv.Edit();
-                            Log($"任务 {task.TaskId}: 从受保护视图打开文件成功");
-                        }
-                        catch (Exception ex)
-                        {
-                            Log($"任务 {task.TaskId}: 受保护视图打开失败 ({ex.Message})，尝试直接打开");
-                            doc = word.Documents.Open(task.InputFile);
-                            Log($"任务 {task.TaskId}: 直接打开文件成功");
-                        }
+                        // 直接打开文件，不使用受保护视图
+                        Log($"任务 {task.TaskId}: 打开文件 - {Path.GetFileName(task.InputFile)}");
+                        
+                        // 使用更安全的打开方式
+                        object fileName = task.InputFile;
+                        object confirmConversions = false;
+                        object readOnly = false;
+                        object addToRecentFiles = false;
+                        object visible = false;
+                        object missing = System.Reflection.Missing.Value;
+                        
+                        doc = word.Documents.Open(
+                            ref fileName,
+                            ref confirmConversions,
+                            ref readOnly,
+                            ref addToRecentFiles,
+                            ref missing, ref missing, ref missing, ref missing,
+                            ref missing, ref missing, ref missing,
+                            ref visible,
+                            ref missing, ref missing, ref missing, ref missing
+                        );
+                        
+                        Log($"任务 {task.TaskId}: 文件打开成功");
 
                         if (EnableRefresh)
                         {
@@ -468,7 +502,22 @@ namespace WordApiService
 
                         Log($"任务 {task.TaskId}: 关闭文档");
                         doc.Close(false);
+                        
+                        // 释放文档对象
+                        System.Runtime.InteropServices.Marshal.ReleaseComObject(doc);
+                        doc = null;
+                        
+                        Log($"任务 {task.TaskId}: 退出 Word 应用程序");
                         word.Quit();
+                        
+                        // 释放 Word 应用程序对象
+                        System.Runtime.InteropServices.Marshal.ReleaseComObject(word);
+                        word = null;
+                        
+                        // 强制垃圾回收，确保 COM 对象被释放
+                        GC.Collect();
+                        GC.WaitForPendingFinalizers();
+                        GC.Collect();
 
                         _taskStatus[task.TaskId] = "completed";
                         
@@ -492,18 +541,46 @@ namespace WordApiService
                         // 确保清理资源
                         try
                         {
+                            Log($"任务 {task.TaskId}: 清理资源");
+                            
                             if (doc != null)
                             {
-                                doc.Close(false);
+                                try
+                                {
+                                    doc.Close(false);
+                                    System.Runtime.InteropServices.Marshal.ReleaseComObject(doc);
+                                }
+                                catch (Exception cleanEx)
+                                {
+                                    Log($"任务 {task.TaskId}: 清理文档对象失败 - {cleanEx.Message}");
+                                }
+                                doc = null;
                             }
+                            
                             if (word != null)
                             {
-                                word.Quit();
+                                try
+                                {
+                                    word.Quit();
+                                    System.Runtime.InteropServices.Marshal.ReleaseComObject(word);
+                                }
+                                catch (Exception cleanEx)
+                                {
+                                    Log($"任务 {task.TaskId}: 清理 Word 应用程序失败 - {cleanEx.Message}");
+                                }
+                                word = null;
                             }
+                            
+                            // 强制垃圾回收
+                            GC.Collect();
+                            GC.WaitForPendingFinalizers();
+                            GC.Collect();
+                            
+                            Log($"任务 {task.TaskId}: 资源清理完成");
                         }
-                        catch
+                        catch (Exception cleanupEx)
                         {
-                            // 忽略清理错误
+                            Log($"任务 {task.TaskId}: 资源清理异常 - {cleanupEx.Message}");
                         }
                     }
                 }
@@ -511,6 +588,9 @@ namespace WordApiService
                 {
                     Thread.Sleep(200);
                 }
+                
+                // 任务之间添加短暂延迟，确保资源完全释放
+                Thread.Sleep(500);
             }
         }
     }
