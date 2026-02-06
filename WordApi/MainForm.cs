@@ -10,8 +10,15 @@ namespace WordApiService
         private CheckBox _refreshCheckBox = null!;
         private CheckBox _pdfCheckBox = null!;
         private CheckBox _autoStartCheckBox = null!;
+        private CheckBox _autoDeleteUploadsCheckBox = null!;
+        private CheckBox _autoDeleteOutputsCheckBox = null!;
+        private NumericUpDown _deleteAfterDaysInput = null!;
         private TextBox _taskDirInput = null!;
+        private TextBox _uploadDirInput = null!;
+        private TextBox _outputDirInput = null!;
         private Button _browseDirButton = null!;
+        private Button _browseUploadDirButton = null!;
+        private Button _browseOutputDirButton = null!;
         private Button _startButton = null!;
         private Label _statusLabel = null!;
         private TextBox _logTextBox = null!;
@@ -67,8 +74,8 @@ namespace WordApiService
         private void InitializeUI()
         {
             Text = "Word API 服务";
-            Width = 450;
-            Height = 550;
+            Width = 500;
+            Height = 750;
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -116,7 +123,7 @@ namespace WordApiService
             {
                 Left = 110,
                 Top = 20,
-                Width = 300,
+                Width = 290,
                 Minimum = 1000,
                 Maximum = 65535,
                 Value = 5000
@@ -137,7 +144,7 @@ namespace WordApiService
             {
                 Left = 110,
                 Top = 55,
-                Width = 240,
+                Width = 290,
                 Text = Path.Combine(AppContext.BaseDirectory, "Tasks")
             };
             Controls.Add(_taskDirInput);
@@ -145,7 +152,7 @@ namespace WordApiService
             _browseDirButton = new Button
             {
                 Text = "浏览",
-                Left = 360,
+                Left = 410,
                 Top = 53,
                 Width = 50,
                 Height = 25
@@ -153,13 +160,73 @@ namespace WordApiService
             _browseDirButton.Click += BrowseDirButton_Click;
             Controls.Add(_browseDirButton);
 
+            // 上传目录配置
+            var uploadDirLabel = new Label
+            {
+                Text = "上传目录:",
+                Left = 20,
+                Top = 90,
+                Width = 80
+            };
+            Controls.Add(uploadDirLabel);
+
+            _uploadDirInput = new TextBox
+            {
+                Left = 110,
+                Top = 90,
+                Width = 290,
+                Text = Path.Combine(AppContext.BaseDirectory, "Tasks", "uploads")
+            };
+            Controls.Add(_uploadDirInput);
+
+            _browseUploadDirButton = new Button
+            {
+                Text = "浏览",
+                Left = 410,
+                Top = 88,
+                Width = 50,
+                Height = 25
+            };
+            _browseUploadDirButton.Click += BrowseUploadDirButton_Click;
+            Controls.Add(_browseUploadDirButton);
+
+            // 输出目录配置
+            var outputDirLabel = new Label
+            {
+                Text = "输出目录:",
+                Left = 20,
+                Top = 125,
+                Width = 80
+            };
+            Controls.Add(outputDirLabel);
+
+            _outputDirInput = new TextBox
+            {
+                Left = 110,
+                Top = 125,
+                Width = 290,
+                Text = Path.Combine(AppContext.BaseDirectory, "Tasks", "outputs")
+            };
+            Controls.Add(_outputDirInput);
+
+            _browseOutputDirButton = new Button
+            {
+                Text = "浏览",
+                Left = 410,
+                Top = 123,
+                Width = 50,
+                Height = 25
+            };
+            _browseOutputDirButton.Click += BrowseOutputDirButton_Click;
+            Controls.Add(_browseOutputDirButton);
+
             // 刷新目录开关
             _refreshCheckBox = new CheckBox
             {
                 Text = "启用目录刷新（更新域和目录）",
                 Left = 20,
-                Top = 95,
-                Width = 390,
+                Top = 165,
+                Width = 440,
                 Checked = true
             };
             Controls.Add(_refreshCheckBox);
@@ -169,19 +236,75 @@ namespace WordApiService
             {
                 Text = "启用 PDF 转换",
                 Left = 20,
-                Top = 125,
-                Width = 390,
+                Top = 195,
+                Width = 440,
                 Checked = true
             };
             Controls.Add(_pdfCheckBox);
+
+            // 自动删除上传文件
+            _autoDeleteUploadsCheckBox = new CheckBox
+            {
+                Text = "自动删除上传文件",
+                Left = 20,
+                Top = 225,
+                Width = 200,
+                Checked = false
+            };
+            _autoDeleteUploadsCheckBox.CheckedChanged += AutoDeleteCheckBox_CheckedChanged;
+            Controls.Add(_autoDeleteUploadsCheckBox);
+
+            // 自动删除输出文件
+            _autoDeleteOutputsCheckBox = new CheckBox
+            {
+                Text = "自动删除输出文件",
+                Left = 240,
+                Top = 225,
+                Width = 200,
+                Checked = false
+            };
+            _autoDeleteOutputsCheckBox.CheckedChanged += AutoDeleteCheckBox_CheckedChanged;
+            Controls.Add(_autoDeleteOutputsCheckBox);
+
+            // 保留天数
+            var deleteAfterDaysLabel = new Label
+            {
+                Text = "保留天数:",
+                Left = 20,
+                Top = 260,
+                Width = 80
+            };
+            Controls.Add(deleteAfterDaysLabel);
+
+            _deleteAfterDaysInput = new NumericUpDown
+            {
+                Left = 110,
+                Top = 258,
+                Width = 80,
+                Minimum = 1,
+                Maximum = 365,
+                Value = 7,
+                Enabled = false
+            };
+            Controls.Add(_deleteAfterDaysInput);
+
+            var daysHintLabel = new Label
+            {
+                Text = "天（启用自动删除后生效）",
+                Left = 200,
+                Top = 260,
+                Width = 260,
+                ForeColor = Color.Gray
+            };
+            Controls.Add(daysHintLabel);
 
             // 开机自启开关
             _autoStartCheckBox = new CheckBox
             {
                 Text = "开机自动启动",
                 Left = 20,
-                Top = 155,
-                Width = 390,
+                Top = 295,
+                Width = 440,
                 Checked = false
             };
             _autoStartCheckBox.CheckedChanged += AutoStartCheckBox_CheckedChanged;
@@ -192,8 +315,8 @@ namespace WordApiService
             {
                 Text = "启动服务",
                 Left = 20,
-                Top = 195,
-                Width = 390,
+                Top = 335,
+                Width = 440,
                 Height = 40
             };
             _startButton.Click += StartButton_Click;
@@ -204,9 +327,9 @@ namespace WordApiService
             {
                 Text = "状态: 未启动",
                 Left = 20,
-                Top = 245,
-                Width = 590,
-                Height = 30,
+                Top = 385,
+                Width = 440,
+                Height = 50,
                 ForeColor = Color.Gray
             };
             Controls.Add(_statusLabel);
@@ -216,7 +339,7 @@ namespace WordApiService
             {
                 Text = "运行日志:",
                 Left = 20,
-                Top = 285,
+                Top = 445,
                 Width = 100,
                 Height = 20
             };
@@ -225,9 +348,9 @@ namespace WordApiService
             _logTextBox = new TextBox
             {
                 Left = 20,
-                Top = 310,
-                Width = 390,
-                Height = 150,
+                Top = 470,
+                Width = 440,
+                Height = 180,
                 Multiline = true,
                 ScrollBars = ScrollBars.Vertical,
                 ReadOnly = true,
@@ -242,8 +365,8 @@ namespace WordApiService
             {
                 Text = "---------- www.secdriver.com 信安世纪 ----------",
                 Left = 20,
-                Top = 470,
-                Width = 390,
+                Top = 660,
+                Width = 440,
                 Height = 20,
                 TextAlign = ContentAlignment.MiddleCenter,
                 ForeColor = Color.DarkGray,
@@ -317,6 +440,42 @@ namespace WordApiService
             }
         }
 
+        private void BrowseUploadDirButton_Click(object? sender, EventArgs e)
+        {
+            using var dialog = new FolderBrowserDialog
+            {
+                Description = "选择上传目录",
+                SelectedPath = _uploadDirInput.Text,
+                ShowNewFolderButton = true
+            };
+
+            if (dialog.ShowDialog() == DialogResult.OK)
+            {
+                _uploadDirInput.Text = dialog.SelectedPath;
+            }
+        }
+
+        private void BrowseOutputDirButton_Click(object? sender, EventArgs e)
+        {
+            using var dialog = new FolderBrowserDialog
+            {
+                Description = "选择输出目录",
+                SelectedPath = _outputDirInput.Text,
+                ShowNewFolderButton = true
+            };
+
+            if (dialog.ShowDialog() == DialogResult.OK)
+            {
+                _outputDirInput.Text = dialog.SelectedPath;
+            }
+        }
+
+        private void AutoDeleteCheckBox_CheckedChanged(object? sender, EventArgs e)
+        {
+            // 当任一自动删除选项被选中时，启用保留天数输入
+            _deleteAfterDaysInput.Enabled = _autoDeleteUploadsCheckBox.Checked || _autoDeleteOutputsCheckBox.Checked;
+        }
+
         private void StartButton_Click(object? sender, EventArgs e)
         {
             if (!_service.IsRunning)
@@ -344,6 +503,11 @@ namespace WordApiService
                 _service.EnableRefresh = _refreshCheckBox.Checked;
                 _service.EnablePdf = _pdfCheckBox.Checked;
                 _service.TaskDirectory = taskDir;
+                _service.UploadDirectory = _uploadDirInput.Text.Trim();
+                _service.OutputDirectory = _outputDirInput.Text.Trim();
+                _service.AutoDeleteUploads = _autoDeleteUploadsCheckBox.Checked;
+                _service.AutoDeleteOutputs = _autoDeleteOutputsCheckBox.Checked;
+                _service.DeleteAfterDays = (int)_deleteAfterDaysInput.Value;
 
                 // 禁用按钮防止重复点击
                 _startButton.Enabled = false;
@@ -364,9 +528,16 @@ namespace WordApiService
                             _statusLabel.ForeColor = Color.Green;
                             _portInput.Enabled = false;
                             _taskDirInput.Enabled = false;
+                            _uploadDirInput.Enabled = false;
+                            _outputDirInput.Enabled = false;
                             _browseDirButton.Enabled = false;
+                            _browseUploadDirButton.Enabled = false;
+                            _browseOutputDirButton.Enabled = false;
                             _refreshCheckBox.Enabled = false;
                             _pdfCheckBox.Enabled = false;
+                            _autoDeleteUploadsCheckBox.Enabled = false;
+                            _autoDeleteOutputsCheckBox.Enabled = false;
+                            _deleteAfterDaysInput.Enabled = false;
                         });
                     }
                     catch (Exception ex)
@@ -401,9 +572,16 @@ namespace WordApiService
                             _statusLabel.ForeColor = Color.Gray;
                             _portInput.Enabled = true;
                             _taskDirInput.Enabled = true;
+                            _uploadDirInput.Enabled = true;
+                            _outputDirInput.Enabled = true;
                             _browseDirButton.Enabled = true;
+                            _browseUploadDirButton.Enabled = true;
+                            _browseOutputDirButton.Enabled = true;
                             _refreshCheckBox.Enabled = true;
                             _pdfCheckBox.Enabled = true;
+                            _autoDeleteUploadsCheckBox.Enabled = true;
+                            _autoDeleteOutputsCheckBox.Enabled = true;
+                            _deleteAfterDaysInput.Enabled = _autoDeleteUploadsCheckBox.Checked || _autoDeleteOutputsCheckBox.Checked;
                         });
                     }
                     catch (Exception ex)

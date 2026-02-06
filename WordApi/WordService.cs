@@ -22,12 +22,19 @@ namespace WordApiService
         public bool EnablePdf { get; set; } = true;
         public int Port { get; set; } = 5000;
         public string TaskDirectory { get; set; } = string.Empty;
+        public string UploadDirectory { get; set; } = string.Empty;
+        public string OutputDirectory { get; set; } = string.Empty;
+        public bool AutoDeleteUploads { get; set; } = false;
+        public bool AutoDeleteOutputs { get; set; } = false;
+        public int DeleteAfterDays { get; set; } = 7;
         public bool IsRunning { get; private set; }
         public event Action<string>? OnLog;
 
         public WordService()
         {
             TaskDirectory = Path.Combine(AppContext.BaseDirectory, "Tasks");
+            UploadDirectory = Path.Combine(TaskDirectory, "uploads");
+            OutputDirectory = Path.Combine(TaskDirectory, "outputs");
         }
 
         private void Log(string message)
@@ -48,12 +55,74 @@ namespace WordApiService
             }
         }
 
+        private void CleanOldFiles()
+        {
+            try
+            {
+                var cutoffDate = DateTime.Now.AddDays(-DeleteAfterDays);
+                
+                if (AutoDeleteUploads && Directory.Exists(UploadDirectory))
+                {
+                    var deletedCount = 0;
+                    foreach (var yearDir in Directory.GetDirectories(UploadDirectory))
+                    {
+                        foreach (var dayDir in Directory.GetDirectories(yearDir))
+                        {
+                            var dirInfo = new DirectoryInfo(dayDir);
+                            if (dirInfo.CreationTime < cutoffDate)
+                            {
+                                Directory.Delete(dayDir, true);
+                                deletedCount++;
+                            }
+                        }
+                        // 删除空的年份目录
+                        if (Directory.GetDirectories(yearDir).Length == 0)
+                        {
+                            Directory.Delete(yearDir);
+                        }
+                    }
+                    if (deletedCount > 0)
+                        Log($"清理上传文件: 删除了 {deletedCount} 个超过 {DeleteAfterDays} 天的目录");
+                }
+                
+                if (AutoDeleteOutputs && Directory.Exists(OutputDirectory))
+                {
+                    var deletedCount = 0;
+                    foreach (var yearDir in Directory.GetDirectories(OutputDirectory))
+                    {
+                        foreach (var dayDir in Directory.GetDirectories(yearDir))
+                        {
+                            var dirInfo = new DirectoryInfo(dayDir);
+                            if (dirInfo.CreationTime < cutoffDate)
+                            {
+                                Directory.Delete(dayDir, true);
+                                deletedCount++;
+                            }
+                        }
+                        // 删除空的年份目录
+                        if (Directory.GetDirectories(yearDir).Length == 0)
+                        {
+                            Directory.Delete(yearDir);
+                        }
+                    }
+                    if (deletedCount > 0)
+                        Log($"清理输出文件: 删除了 {deletedCount} 个超过 {DeleteAfterDays} 天的目录");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"清理旧文件时出错: {ex.Message}");
+            }
+        }
+
         public async System.Threading.Tasks.Task StartAsync()
         {
             if (IsRunning) return;
 
             // 确保目录存在
             Directory.CreateDirectory(TaskDirectory);
+            Directory.CreateDirectory(UploadDirectory);
+            Directory.CreateDirectory(OutputDirectory);
             
             // 创建日志文件
             _logFilePath = Path.Combine(TaskDirectory, $"api_log_{DateTime.Now:yyyyMMdd}.txt");
@@ -63,6 +132,15 @@ namespace WordApiService
 
             Log($"服务启动 - 端口: {Port}, 任务目录: {TaskDirectory}");
             Log($"监听地址: http://0.0.0.0:{Port} (可通过局域网访问)");
+            Log($"上传目录: {UploadDirectory}");
+            Log($"输出目录: {OutputDirectory}");
+            
+            // 清理旧文件
+            if (AutoDeleteUploads || AutoDeleteOutputs)
+            {
+                Log($"文件清理策略: 上传文件={AutoDeleteUploads}, 输出文件={AutoDeleteOutputs}, 保留天数={DeleteAfterDays}");
+                CleanOldFiles();
+            }
 
             // 启动后台处理线程（必须使用 STA 线程，Word COM 需要）
             Log("准备启动 ProcessQueue 后台线程...");
@@ -113,9 +191,10 @@ namespace WordApiService
 
                         Log($"POST /wordapi - {clientIp} - 文件名: {file.FileName}, 大小: {file.Length} bytes");
 
-                        // 保存上传的文件
+                        // 保存上传的文件，使用 年/月日 目录结构
                         var taskId = Guid.NewGuid().ToString();
-                        var uploadDir = Path.Combine(TaskDirectory, "uploads");
+                        var now = DateTime.Now;
+                        var uploadDir = Path.Combine(UploadDirectory, now.ToString("yyyy"), now.ToString("MMdd"));
                         Directory.CreateDirectory(uploadDir);
                         
                         var inputFilePath = Path.Combine(uploadDir, $"{taskId}_{file.FileName}");
@@ -128,12 +207,16 @@ namespace WordApiService
 
                         Log($"POST /wordapi - {clientIp} - 文件保存成功");
 
+                        // 输出文件也使用 年/月日 目录结构
+                        var outputDir = Path.Combine(OutputDirectory, now.ToString("yyyy"), now.ToString("MMdd"));
+                        Directory.CreateDirectory(outputDir);
+
                         var requestTask = new WordTask
                         {
                             TaskId = taskId,
                             InputFile = inputFilePath,
-                            OutputDocx = Path.Combine(TaskDirectory, taskId + ".docx"),
-                            OutputPdf = Path.Combine(TaskDirectory, taskId + ".pdf")
+                            OutputDocx = Path.Combine(outputDir, taskId + ".docx"),
+                            OutputPdf = Path.Combine(outputDir, taskId + ".pdf")
                         };
 
                         _taskQueue.Enqueue(requestTask);
@@ -163,8 +246,14 @@ namespace WordApiService
                         }
 
                         requestTask.TaskId = Guid.NewGuid().ToString();
-                        requestTask.OutputDocx = Path.Combine(TaskDirectory, requestTask.TaskId + ".docx");
-                        requestTask.OutputPdf = Path.Combine(TaskDirectory, requestTask.TaskId + ".pdf");
+                        
+                        // 输出文件使用 年/月日 目录结构
+                        var now = DateTime.Now;
+                        var outputDir = Path.Combine(OutputDirectory, now.ToString("yyyy"), now.ToString("MMdd"));
+                        Directory.CreateDirectory(outputDir);
+                        
+                        requestTask.OutputDocx = Path.Combine(outputDir, requestTask.TaskId + ".docx");
+                        requestTask.OutputPdf = Path.Combine(outputDir, requestTask.TaskId + ".pdf");
 
                         _taskQueue.Enqueue(requestTask);
                         _taskStatus[requestTask.TaskId] = "queued";
@@ -320,12 +409,14 @@ namespace WordApiService
                         _taskResult[task.TaskId] = result;
                         
                         Log($"任务完成: {task.TaskId}");
+                        Log("----------------------------------------");
                     }
                     catch (Exception ex)
                     {
                         _taskStatus[task.TaskId] = "failed";
                         _taskResult[task.TaskId] = new { error = ex.Message };
                         Log($"任务失败: {task.TaskId} - {ex.Message}");
+                        Log("----------------------------------------");
                     }
                 }
                 else
