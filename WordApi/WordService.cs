@@ -55,6 +55,29 @@ namespace WordApiService
             }
         }
 
+        private string GetFileUrl(string filePath)
+        {
+            // 将文件路径转换为 HTTP URL
+            // 例如: E:\...\outputs\2026\0206\xxx.docx -> http://localhost:5000/files/2026/0206/xxx.docx
+            try
+            {
+                var relativePath = Path.GetRelativePath(OutputDirectory, filePath);
+                var parts = relativePath.Split(Path.DirectorySeparatorChar);
+                if (parts.Length >= 3)
+                {
+                    var year = parts[0];
+                    var day = parts[1];
+                    var filename = parts[2];
+                    return $"http://localhost:{Port}/files/{year}/{day}/{filename}";
+                }
+            }
+            catch
+            {
+                // 如果转换失败，返回原路径
+            }
+            return filePath;
+        }
+
         private void CleanOldFiles()
         {
             try
@@ -298,6 +321,37 @@ namespace WordApiService
                 }
             });
 
+            // 静态文件服务 - 提供输出文件下载
+            _app.MapGet("/files/{year}/{day}/{filename}", async (HttpContext context, string year, string day, string filename) =>
+            {
+                var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var filePath = Path.Combine(OutputDirectory, year, day, filename);
+                
+                if (!File.Exists(filePath))
+                {
+                    Log($"GET /files/{year}/{day}/{filename} - {clientIp} - 404 Not Found");
+                    context.Response.StatusCode = 404;
+                    await context.Response.WriteAsJsonAsync(new { error = "File not found." });
+                    return;
+                }
+
+                Log($"GET /files/{year}/{day}/{filename} - {clientIp} - 200 OK");
+                
+                // 设置正确的 Content-Type
+                var extension = Path.GetExtension(filename).ToLower();
+                context.Response.ContentType = extension switch
+                {
+                    ".pdf" => "application/pdf",
+                    ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    _ => "application/octet-stream"
+                };
+                
+                // 设置文件名
+                context.Response.Headers.Append("Content-Disposition", $"attachment; filename=\"{filename}\"");
+                
+                await context.Response.SendFileAsync(filePath);
+            });
+
             // 在后台线程启动 Web 服务
             _webHostTask = _app.StartAsync();
             
@@ -345,7 +399,12 @@ namespace WordApiService
 
         private void ProcessQueue(CancellationToken token)
         {
-            Log("ProcessQueue 线程已启动 (STA 模式)");
+            Log($"ProcessQueue 线程已启动 (STA 模式: {Thread.CurrentThread.GetApartmentState() == ApartmentState.STA})");
+            
+            if (Thread.CurrentThread.GetApartmentState() != ApartmentState.STA)
+            {
+                Log("警告: 线程不是 STA 模式，Word COM 可能无法正常工作");
+            }
             
             while (!token.IsCancellationRequested)
             {
@@ -354,24 +413,32 @@ namespace WordApiService
                     _taskStatus[task.TaskId] = "running";
                     Log($"开始处理任务: {task.TaskId}, 输入文件: {task.InputFile}");
                     
+                    Microsoft.Office.Interop.Word.Application? word = null;
+                    Document? doc = null;
+                    
                     try
                     {
-                        Microsoft.Office.Interop.Word.Application word = new();
+                        // 创建 Word 应用程序实例
+                        Log($"任务 {task.TaskId}: 创建 Word 应用程序实例");
+                        word = new Microsoft.Office.Interop.Word.Application();
                         word.Visible = false;
-
-                        Document doc;
+                        word.DisplayAlerts = WdAlertLevel.wdAlertsNone;
                         
+                        Log($"任务 {task.TaskId}: Word 应用程序已创建");
+
                         // 尝试使用受保护视图打开，如果失败则直接打开
                         try
                         {
+                            Log($"任务 {task.TaskId}: 尝试从受保护视图打开文件");
                             var pv = word.ProtectedViewWindows.Open(task.InputFile);
                             doc = pv.Edit();
-                            Log($"任务 {task.TaskId}: 从受保护视图打开文件");
+                            Log($"任务 {task.TaskId}: 从受保护视图打开文件成功");
                         }
-                        catch
+                        catch (Exception ex)
                         {
+                            Log($"任务 {task.TaskId}: 受保护视图打开失败 ({ex.Message})，尝试直接打开");
                             doc = word.Documents.Open(task.InputFile);
-                            Log($"任务 {task.TaskId}: 直接打开文件");
+                            Log($"任务 {task.TaskId}: 直接打开文件成功");
                         }
 
                         if (EnableRefresh)
@@ -399,13 +466,16 @@ namespace WordApiService
                             Log($"任务 {task.TaskId}: 跳过 PDF 导出（配置已禁用）");
                         }
 
+                        Log($"任务 {task.TaskId}: 关闭文档");
                         doc.Close(false);
                         word.Quit();
 
                         _taskStatus[task.TaskId] = "completed";
-                        var result = new Dictionary<string, string> { { "docx", task.OutputDocx } };
+                        
+                        // 返回 HTTP URL 而不是文件路径
+                        var result = new Dictionary<string, string> { { "docx", GetFileUrl(task.OutputDocx) } };
                         if (EnablePdf)
-                            result["pdf"] = task.OutputPdf;
+                            result["pdf"] = GetFileUrl(task.OutputPdf);
                         _taskResult[task.TaskId] = result;
                         
                         Log($"任务完成: {task.TaskId}");
@@ -416,7 +486,25 @@ namespace WordApiService
                         _taskStatus[task.TaskId] = "failed";
                         _taskResult[task.TaskId] = new { error = ex.Message };
                         Log($"任务失败: {task.TaskId} - {ex.Message}");
+                        Log($"错误详情: {ex.GetType().Name} - {ex.StackTrace}");
                         Log("----------------------------------------");
+                        
+                        // 确保清理资源
+                        try
+                        {
+                            if (doc != null)
+                            {
+                                doc.Close(false);
+                            }
+                            if (word != null)
+                            {
+                                word.Quit();
+                            }
+                        }
+                        catch
+                        {
+                            // 忽略清理错误
+                        }
                     }
                 }
                 else
