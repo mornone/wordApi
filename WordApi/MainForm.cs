@@ -35,6 +35,19 @@ namespace WordApiService
             
             // 调试：显示嵌入的资源名称
             LogEmbeddedResources();
+            
+            // 窗口加载完成后自动启动服务
+            this.Load += MainForm_Load;
+        }
+
+        private async void MainForm_Load(object? sender, EventArgs e)
+        {
+            // 延迟一小段时间，确保界面完全加载
+            await Task.Delay(500);
+            
+            // 自动启动服务
+            OnServiceLog("自动启动服务...");
+            StartButton_Click(null, EventArgs.Empty);
         }
 
         private void LogEmbeddedResources()
