@@ -62,6 +62,7 @@ namespace WordApiService
             IsRunning = true;
 
             Log($"服务启动 - 端口: {Port}, 任务目录: {TaskDirectory}");
+            Log($"监听地址: http://0.0.0.0:{Port} (可通过局域网访问)");
 
             // 启动后台处理线程
             _ = System.Threading.Tasks.Task.Run(() => ProcessQueue(_cts.Token));
@@ -69,7 +70,7 @@ namespace WordApiService
             // 启动 HTTP 服务
             var args = new string[] { };
             var builder = WebApplication.CreateBuilder(args);
-            builder.WebHost.UseUrls($"http://localhost:{Port}");
+            builder.WebHost.UseUrls($"http://0.0.0.0:{Port}");  // 监听所有网络接口
             builder.Logging.ClearProviders(); // 清除日志输出
             
             _app = builder.Build();
@@ -80,32 +81,73 @@ namespace WordApiService
                 
                 try
                 {
-                    var requestTask = await JsonSerializer.DeserializeAsync<WordTask>(context.Request.Body);
-                    if (requestTask == null || string.IsNullOrEmpty(requestTask.InputFile))
+                    // 检查是否是文件上传请求
+                    if (context.Request.HasFormContentType && context.Request.Form.Files.Count > 0)
                     {
-                        Log($"POST /wordapi - {clientIp} - 400 Bad Request: InputFile is required");
-                        context.Response.StatusCode = 400;
-                        await context.Response.WriteAsJsonAsync(new { error = "InputFile is required." });
-                        return;
-                    }
+                        var file = context.Request.Form.Files["InputFile"];
+                        if (file == null || file.Length == 0)
+                        {
+                            Log($"POST /wordapi - {clientIp} - 400 Bad Request: InputFile is required");
+                            context.Response.StatusCode = 400;
+                            await context.Response.WriteAsJsonAsync(new { error = "InputFile is required." });
+                            return;
+                        }
 
-                    if (!File.Exists(requestTask.InputFile))
+                        // 保存上传的文件
+                        var taskId = Guid.NewGuid().ToString();
+                        var uploadDir = Path.Combine(TaskDirectory, "uploads");
+                        Directory.CreateDirectory(uploadDir);
+                        
+                        var inputFilePath = Path.Combine(uploadDir, $"{taskId}_{file.FileName}");
+                        using (var stream = new FileStream(inputFilePath, FileMode.Create))
+                        {
+                            await file.CopyToAsync(stream);
+                        }
+
+                        var requestTask = new WordTask
+                        {
+                            TaskId = taskId,
+                            InputFile = inputFilePath,
+                            OutputDocx = Path.Combine(TaskDirectory, taskId + ".docx"),
+                            OutputPdf = Path.Combine(TaskDirectory, taskId + ".pdf")
+                        };
+
+                        _taskQueue.Enqueue(requestTask);
+                        _taskStatus[requestTask.TaskId] = "queued";
+
+                        Log($"POST /wordapi - {clientIp} - 200 OK: Task created - TaskId: {requestTask.TaskId}, Input: {file.FileName}");
+                        await context.Response.WriteAsJsonAsync(new { status = "queued", taskId = requestTask.TaskId });
+                    }
+                    else
                     {
-                        Log($"POST /wordapi - {clientIp} - 400 Bad Request: File not found - {requestTask.InputFile}");
-                        context.Response.StatusCode = 400;
-                        await context.Response.WriteAsJsonAsync(new { error = "InputFile does not exist." });
-                        return;
+                        // 原有的 JSON 请求处理
+                        var requestTask = await JsonSerializer.DeserializeAsync<WordTask>(context.Request.Body);
+                        if (requestTask == null || string.IsNullOrEmpty(requestTask.InputFile))
+                        {
+                            Log($"POST /wordapi - {clientIp} - 400 Bad Request: InputFile is required");
+                            context.Response.StatusCode = 400;
+                            await context.Response.WriteAsJsonAsync(new { error = "InputFile is required." });
+                            return;
+                        }
+
+                        if (!File.Exists(requestTask.InputFile))
+                        {
+                            Log($"POST /wordapi - {clientIp} - 400 Bad Request: File not found - {requestTask.InputFile}");
+                            context.Response.StatusCode = 400;
+                            await context.Response.WriteAsJsonAsync(new { error = "InputFile does not exist." });
+                            return;
+                        }
+
+                        requestTask.TaskId = Guid.NewGuid().ToString();
+                        requestTask.OutputDocx = Path.Combine(TaskDirectory, requestTask.TaskId + ".docx");
+                        requestTask.OutputPdf = Path.Combine(TaskDirectory, requestTask.TaskId + ".pdf");
+
+                        _taskQueue.Enqueue(requestTask);
+                        _taskStatus[requestTask.TaskId] = "queued";
+
+                        Log($"POST /wordapi - {clientIp} - 200 OK: Task created - TaskId: {requestTask.TaskId}, Input: {requestTask.InputFile}");
+                        await context.Response.WriteAsJsonAsync(new { status = "queued", taskId = requestTask.TaskId });
                     }
-
-                    requestTask.TaskId = Guid.NewGuid().ToString();
-                    requestTask.OutputDocx = Path.Combine(TaskDirectory, requestTask.TaskId + ".docx");
-                    requestTask.OutputPdf = Path.Combine(TaskDirectory, requestTask.TaskId + ".pdf");
-
-                    _taskQueue.Enqueue(requestTask);
-                    _taskStatus[requestTask.TaskId] = "queued";
-
-                    Log($"POST /wordapi - {clientIp} - 200 OK: Task created - TaskId: {requestTask.TaskId}, Input: {requestTask.InputFile}");
-                    await context.Response.WriteAsJsonAsync(new { status = "queued", taskId = requestTask.TaskId });
                 }
                 catch (Exception ex)
                 {

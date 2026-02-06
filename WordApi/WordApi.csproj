@@ -16,6 +16,8 @@
     <Product>Word API 服务</Product>
     <Copyright>Copyright © 2026 secdriver.com</Copyright>
     <Description>Word 文档转换 API 服务</Description>
+    <DebugType>embedded</DebugType>
+    <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
 
   <ItemGroup>
@@ -24,9 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="icon.ico">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <EmbeddedResource Include="icon.ico" />
   </ItemGroup>
 
 </Project>

@@ -25,6 +25,30 @@ namespace WordApiService
             _service.OnLog += OnServiceLog;
             InitializeUI();
             LoadAutoStartStatus();
+            
+            // 调试：显示嵌入的资源名称
+            LogEmbeddedResources();
+        }
+
+        private void LogEmbeddedResources()
+        {
+            try
+            {
+                var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                var resources = assembly.GetManifestResourceNames();
+                if (resources.Length > 0)
+                {
+                    OnServiceLog("嵌入的资源列表:");
+                    foreach (var resource in resources)
+                    {
+                        OnServiceLog($"  - {resource}");
+                    }
+                }
+            }
+            catch
+            {
+                // 忽略错误
+            }
         }
 
         private void OnServiceLog(string message)
@@ -46,16 +70,31 @@ namespace WordApiService
             Width = 450;
             Height = 550;
             StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.Sizable;
-            MinimumSize = new Size(450, 550);
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = false;
+            MinimizeBox = true;
 
-            // 设置窗口图标
+            // 设置窗口图标（从嵌入资源加载）
             try
             {
-                var iconPath = Path.Combine(AppContext.BaseDirectory, "icon.ico");
-                if (File.Exists(iconPath))
+                var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                
+                // 尝试多个可能的资源名称
+                string[] possibleNames = new[]
                 {
-                    Icon = new Icon(iconPath);
+                    "WordApiService.icon.ico",
+                    "MyApp.icon.ico",
+                    "icon.ico"
+                };
+
+                foreach (var resourceName in possibleNames)
+                {
+                    using var stream = assembly.GetManifestResourceStream(resourceName);
+                    if (stream != null)
+                    {
+                        Icon = new Icon(stream);
+                        break;
+                    }
                 }
             }
             catch
@@ -321,7 +360,7 @@ namespace WordApiService
                         {
                             _startButton.Text = "停止服务";
                             _startButton.Enabled = true;
-                            _statusLabel.Text = $"状态: 运行中 (http://localhost:{_service.Port})\n任务目录: {taskDir}";
+                            _statusLabel.Text = $"状态: 运行中\nAPI: http://localhost:{_service.Port} (局域网可访问)\n任务目录: {taskDir}";
                             _statusLabel.ForeColor = Color.Green;
                             _portInput.Enabled = false;
                             _taskDirInput.Enabled = false;
