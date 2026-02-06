@@ -14,6 +14,7 @@ namespace WordApiService
         private Button _browseDirButton = null!;
         private Button _startButton = null!;
         private Label _statusLabel = null!;
+        private TextBox _logTextBox = null!;
 
         private const string AutoStartRegKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
         private const string AppName = "WordApiService";
@@ -21,18 +22,46 @@ namespace WordApiService
         public MainForm()
         {
             _service = new WordService();
+            _service.OnLog += OnServiceLog;
             InitializeUI();
             LoadAutoStartStatus();
+        }
+
+        private void OnServiceLog(string message)
+        {
+            if (_logTextBox.InvokeRequired)
+            {
+                _logTextBox.Invoke(() => OnServiceLog(message));
+                return;
+            }
+
+            _logTextBox.AppendText(message + Environment.NewLine);
+            _logTextBox.SelectionStart = _logTextBox.Text.Length;
+            _logTextBox.ScrollToCaret();
         }
 
         private void InitializeUI()
         {
             Text = "Word API 服务";
             Width = 450;
-            Height = 380;
+            Height = 550;
             StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
+            FormBorderStyle = FormBorderStyle.Sizable;
+            MinimumSize = new Size(450, 550);
+
+            // 设置窗口图标
+            try
+            {
+                var iconPath = Path.Combine(AppContext.BaseDirectory, "icon.ico");
+                if (File.Exists(iconPath))
+                {
+                    Icon = new Icon(iconPath);
+                }
+            }
+            catch
+            {
+                // 如果加载图标失败，使用默认图标
+            }
 
             // 端口配置
             var portLabel = new Label
@@ -137,23 +166,50 @@ namespace WordApiService
                 Text = "状态: 未启动",
                 Left = 20,
                 Top = 245,
-                Width = 390,
+                Width = 590,
                 Height = 30,
                 ForeColor = Color.Gray
             };
             Controls.Add(_statusLabel);
+
+            // 日志显示区域
+            var logLabel = new Label
+            {
+                Text = "运行日志:",
+                Left = 20,
+                Top = 285,
+                Width = 100,
+                Height = 20
+            };
+            Controls.Add(logLabel);
+
+            _logTextBox = new TextBox
+            {
+                Left = 20,
+                Top = 310,
+                Width = 390,
+                Height = 150,
+                Multiline = true,
+                ScrollBars = ScrollBars.Vertical,
+                ReadOnly = true,
+                BackColor = Color.White,
+                Font = new Font("Consolas", 9),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom
+            };
+            Controls.Add(_logTextBox);
 
             // 版权信息
             var copyrightLabel = new Label
             {
                 Text = "---------- www.secdriver.com 信安世纪 ----------",
                 Left = 20,
-                Top = 285,
+                Top = 470,
                 Width = 390,
                 Height = 20,
                 TextAlign = ContentAlignment.MiddleCenter,
                 ForeColor = Color.DarkGray,
-                Font = new Font(Font.FontFamily, 8)
+                Font = new Font(Font.FontFamily, 8),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
             };
             Controls.Add(copyrightLabel);
         }
