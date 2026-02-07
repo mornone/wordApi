@@ -78,6 +78,40 @@ namespace WordApiService
             return filePath;
         }
 
+        private string GetFallbackHtml()
+        {
+            return @"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <title>Word API 服务</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+        h1 { color: #667eea; }
+        .endpoint { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Word API 服务</h1>
+    <p>欢迎使用 Word API 服务！</p>
+    <div class='endpoint'>
+        <h3>POST /wordapi</h3>
+        <p>上传并处理 Word 文档（multipart/form-data，字段名：InputFile）</p>
+    </div>
+    <div class='endpoint'>
+        <h3>GET /wordapi?taskId={taskId}</h3>
+        <p>查询任务状态和结果</p>
+    </div>
+    <div class='endpoint'>
+        <h3>GET /files/{year}/{day}/{filename}</h3>
+        <p>下载处理后的文件</p>
+    </div>
+    <p style='margin-top: 30px; color: #666;'>© 2026 信安世纪 - www.secdriver.com</p>
+</body>
+</html>";
+        }
+
         private void CleanOldFiles()
         {
             try
@@ -318,6 +352,46 @@ namespace WordApiService
                     Log($"GET /wordapi - {clientIp} - 404 Not Found: TaskId: {taskId}");
                     context.Response.StatusCode = 404;
                     await context.Response.WriteAsJsonAsync(new { error = "taskId not found." });
+                }
+            });
+
+            // API 文档端点 - 根路径
+            _app.MapGet("/", async (HttpContext context) =>
+            {
+                var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var htmlPath = Path.Combine(AppContext.BaseDirectory, "api-docs.html");
+                
+                if (File.Exists(htmlPath))
+                {
+                    Log($"GET / - {clientIp} - 200 OK: API 文档");
+                    context.Response.ContentType = "text/html; charset=utf-8";
+                    await context.Response.SendFileAsync(htmlPath);
+                }
+                else
+                {
+                    Log($"GET / - {clientIp} - 200 OK: 备用文档");
+                    context.Response.ContentType = "text/html; charset=utf-8";
+                    await context.Response.WriteAsync(GetFallbackHtml());
+                }
+            });
+
+            // API 文档端点 - /docs 路径
+            _app.MapGet("/docs", async (HttpContext context) =>
+            {
+                var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var htmlPath = Path.Combine(AppContext.BaseDirectory, "api-docs.html");
+                
+                if (File.Exists(htmlPath))
+                {
+                    Log($"GET /docs - {clientIp} - 200 OK: API 文档");
+                    context.Response.ContentType = "text/html; charset=utf-8";
+                    await context.Response.SendFileAsync(htmlPath);
+                }
+                else
+                {
+                    Log($"GET /docs - {clientIp} - 200 OK: 备用文档");
+                    context.Response.ContentType = "text/html; charset=utf-8";
+                    await context.Response.WriteAsync(GetFallbackHtml());
                 }
             });
 

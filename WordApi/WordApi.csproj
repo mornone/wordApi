@@ -35,4 +35,10 @@
     <EmbeddedResource Include="icon.ico" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="api-docs.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

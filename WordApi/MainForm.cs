@@ -20,8 +20,15 @@ namespace WordApiService
         private Button _browseUploadDirButton = null!;
         private Button _browseOutputDirButton = null!;
         private Button _startButton = null!;
+        private Button _copyUrlButton = null!;
+        private Button _copyDocsButton = null!;
         private Label _statusLabel = null!;
+        private Label _apiLabel = null!;
+        private Label _docsLabel = null!;
+        private TextBox _apiUrlTextBox = null!;
+        private TextBox _docsUrlTextBox = null!;
         private TextBox _logTextBox = null!;
+        private NotifyIcon _notifyIcon = null!;
 
         private const string AutoStartRegKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
         private const string AppName = "WordApiService";
@@ -30,7 +37,8 @@ namespace WordApiService
         {
             _service = new WordService();
             _service.OnLog += OnServiceLog;
-            InitializeUI();
+            InitializeUI();  // 这里会加载窗口图标
+            InitializeTrayIcon();  // 然后使用窗口图标初始化托盘
             LoadAutoStartStatus();
             
             // 调试：显示嵌入的资源名称
@@ -48,6 +56,11 @@ namespace WordApiService
             // 自动启动服务
             OnServiceLog("自动启动服务...");
             StartButton_Click(null, EventArgs.Empty);
+            
+            // 启动后自动最小化到托盘
+            await Task.Delay(1000);
+            this.WindowState = FormWindowState.Minimized;
+            this.Hide();
         }
 
         private void LogEmbeddedResources()
@@ -82,6 +95,86 @@ namespace WordApiService
             _logTextBox.AppendText(message + Environment.NewLine);
             _logTextBox.SelectionStart = _logTextBox.Text.Length;
             _logTextBox.ScrollToCaret();
+        }
+
+        private void InitializeTrayIcon()
+        {
+            _notifyIcon = new NotifyIcon();
+            
+            // 设置托盘图标，使用与窗口相同的图标
+            try
+            {
+                if (this.Icon != null)
+                {
+                    _notifyIcon.Icon = this.Icon;
+                }
+                else
+                {
+                    // 如果窗口图标未加载，尝试从嵌入资源加载
+                    var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                    string[] possibleNames = new[]
+                    {
+                        "WordApiService.icon.ico",
+                        "MyApp.icon.ico",
+                        "icon.ico"
+                    };
+
+                    foreach (var resourceName in possibleNames)
+                    {
+                        using var stream = assembly.GetManifestResourceStream(resourceName);
+                        if (stream != null)
+                        {
+                            _notifyIcon.Icon = new Icon(stream);
+                            break;
+                        }
+                    }
+                    
+                    // 如果还是没有，使用系统默认图标
+                    if (_notifyIcon.Icon == null)
+                    {
+                        _notifyIcon.Icon = SystemIcons.Application;
+                    }
+                }
+            }
+            catch
+            {
+                _notifyIcon.Icon = SystemIcons.Application;
+            }
+            
+            _notifyIcon.Text = "Word API 服务";
+            _notifyIcon.Visible = true;
+            
+            // 双击托盘图标显示窗口
+            _notifyIcon.DoubleClick += (s, e) =>
+            {
+                this.Show();
+                this.WindowState = FormWindowState.Normal;
+                this.Activate();
+            };
+            
+            // 右键菜单
+            var contextMenu = new ContextMenuStrip();
+            
+            var showMenuItem = new ToolStripMenuItem("显示主窗口");
+            showMenuItem.Click += (s, e) =>
+            {
+                this.Show();
+                this.WindowState = FormWindowState.Normal;
+                this.Activate();
+            };
+            contextMenu.Items.Add(showMenuItem);
+            
+            contextMenu.Items.Add(new ToolStripSeparator());
+            
+            var exitMenuItem = new ToolStripMenuItem("退出");
+            exitMenuItem.Click += (s, e) =>
+            {
+                _notifyIcon.Visible = false;
+                Application.Exit();
+            };
+            contextMenu.Items.Add(exitMenuItem);
+            
+            _notifyIcon.ContextMenuStrip = contextMenu;
         }
 
         private void InitializeUI()
@@ -342,17 +435,95 @@ namespace WordApiService
                 Left = 20,
                 Top = 385,
                 Width = 440,
-                Height = 50,
+                Height = 20,
                 ForeColor = Color.Gray
             };
             Controls.Add(_statusLabel);
+
+            // API 标签
+            _apiLabel = new Label
+            {
+                Text = "API:",
+                Left = 20,
+                Top = 410,
+                Width = 40,
+                Height = 20
+            };
+            Controls.Add(_apiLabel);
+
+            // API URL 文本框
+            _apiUrlTextBox = new TextBox
+            {
+                Left = 60,
+                Top = 410,
+                Width = 300,
+                Height = 20,
+                ReadOnly = true,
+                BackColor = Color.White,
+                Text = ""
+            };
+            Controls.Add(_apiUrlTextBox);
+
+            // 复制 API 地址按钮
+            _copyUrlButton = new Button
+            {
+                Text = "copy",
+                Left = 370,
+                Top = 408,
+                Width = 60,
+                Height = 24,
+                Enabled = false,
+                Font = new Font(Font.FontFamily, 8),
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            _copyUrlButton.Click += CopyUrlButton_Click;
+            Controls.Add(_copyUrlButton);
+
+            // 文档标签
+            _docsLabel = new Label
+            {
+                Text = "文档:",
+                Left = 20,
+                Top = 438,
+                Width = 40,
+                Height = 20
+            };
+            Controls.Add(_docsLabel);
+
+            // 文档 URL 文本框
+            _docsUrlTextBox = new TextBox
+            {
+                Left = 60,
+                Top = 438,
+                Width = 300,
+                Height = 20,
+                ReadOnly = true,
+                BackColor = Color.White,
+                Text = ""
+            };
+            Controls.Add(_docsUrlTextBox);
+
+            // 复制文档地址按钮
+            _copyDocsButton = new Button
+            {
+                Text = "copy",
+                Left = 370,
+                Top = 436,
+                Width = 60,
+                Height = 24,
+                Enabled = false,
+                Font = new Font(Font.FontFamily, 8),
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            _copyDocsButton.Click += CopyDocsButton_Click;
+            Controls.Add(_copyDocsButton);
 
             // 日志显示区域
             var logLabel = new Label
             {
                 Text = "运行日志:",
                 Left = 20,
-                Top = 445,
+                Top = 470,
                 Width = 100,
                 Height = 20
             };
@@ -361,9 +532,9 @@ namespace WordApiService
             _logTextBox = new TextBox
             {
                 Left = 20,
-                Top = 470,
+                Top = 495,
                 Width = 440,
-                Height = 180,
+                Height = 155,
                 Multiline = true,
                 ScrollBars = ScrollBars.Vertical,
                 ReadOnly = true,
@@ -410,7 +581,8 @@ namespace WordApiService
                 using var key = Registry.CurrentUser.OpenSubKey(AutoStartRegKey, true);
                 if (key == null)
                 {
-                    MessageBox.Show("无法访问注册表", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    OnServiceLog("错误: 无法访问注册表");
+                    _autoStartCheckBox.Checked = !_autoStartCheckBox.Checked;
                     return;
                 }
 
@@ -421,19 +593,19 @@ namespace WordApiService
                     if (!string.IsNullOrEmpty(exePath))
                     {
                         key.SetValue(AppName, $"\"{exePath}\"");
-                        MessageBox.Show("已设置开机自动启动", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        OnServiceLog("已设置开机自动启动");
                     }
                 }
                 else
                 {
                     // 移除开机自启
                     key.DeleteValue(AppName, false);
-                    MessageBox.Show("已取消开机自动启动", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    OnServiceLog("已取消开机自动启动");
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"设置失败: {ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                OnServiceLog($"设置开机自启失败: {ex.Message}");
                 _autoStartCheckBox.Checked = !_autoStartCheckBox.Checked;
             }
         }
@@ -489,6 +661,106 @@ namespace WordApiService
             _deleteAfterDaysInput.Enabled = _autoDeleteUploadsCheckBox.Checked || _autoDeleteOutputsCheckBox.Checked;
         }
 
+        private string GetLocalIPAddress()
+        {
+            try
+            {
+                var networkInterfaces = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces();
+                
+                // 优先选择有默认网关的活动网络接口
+                foreach (var ni in networkInterfaces)
+                {
+                    // 跳过非活动、回环、隧道和虚拟网卡
+                    if (ni.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up)
+                        continue;
+                    
+                    if (ni.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Loopback)
+                        continue;
+                    
+                    if (ni.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Tunnel)
+                        continue;
+                    
+                    // 跳过 VMware 虚拟网卡
+                    if (ni.Name.Contains("VMware", StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    
+                    var ipProps = ni.GetIPProperties();
+                    
+                    // 必须有默认网关（说明是真正的网络连接）
+                    if (ipProps.GatewayAddresses.Count == 0)
+                        continue;
+                    
+                    // 获取 IPv4 地址
+                    foreach (var ip in ipProps.UnicastAddresses)
+                    {
+                        if (ip.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                        {
+                            // 排除 169.254.x.x（APIPA 地址）
+                            var ipBytes = ip.Address.GetAddressBytes();
+                            if (ipBytes[0] == 169 && ipBytes[1] == 254)
+                                continue;
+                            
+                            return ip.Address.ToString();
+                        }
+                    }
+                }
+                
+                // 如果没有找到有网关的接口，返回第一个非虚拟的 IPv4 地址
+                var host = System.Net.Dns.GetHostEntry(System.Net.Dns.GetHostName());
+                foreach (var ip in host.AddressList)
+                {
+                    if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                    {
+                        var ipStr = ip.ToString();
+                        // 排除虚拟网卡的常见 IP 段
+                        if (!ipStr.StartsWith("192.168.206.") && 
+                            !ipStr.StartsWith("192.168.153.") &&
+                            !ipStr.StartsWith("169.254."))
+                        {
+                            return ipStr;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // 忽略错误
+            }
+            return "127.0.0.1";
+        }
+
+        private void CopyUrlButton_Click(object? sender, EventArgs e)
+        {
+            try
+            {
+                var localIp = GetLocalIPAddress();
+                var url = $"http://{localIp}:{_service.Port}/wordapi";
+                Clipboard.SetText(url);
+                OnServiceLog($"已复制 API 地址到剪贴板: {url}");
+                MessageBox.Show($"已复制 API 地址到剪贴板:\n{url}", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"复制失败: {ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void CopyDocsButton_Click(object? sender, EventArgs e)
+        {
+            try
+            {
+                var localIp = GetLocalIPAddress();
+                var url = $"http://{localIp}:{_service.Port}/docs";
+                Clipboard.SetText(url);
+                OnServiceLog($"已复制文档地址到剪贴板: {url}");
+                MessageBox.Show($"已复制文档地址到剪贴板:\n{url}", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"复制失败: {ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         private void StartButton_Click(object? sender, EventArgs e)
         {
             if (!_service.IsRunning)
@@ -535,10 +807,15 @@ namespace WordApiService
                         // 更新UI（需要在UI线程）
                         Invoke(() =>
                         {
+                            var localIp = GetLocalIPAddress();
                             _startButton.Text = "停止服务";
                             _startButton.Enabled = true;
-                            _statusLabel.Text = $"状态: 运行中\nAPI: http://localhost:{_service.Port} (局域网可访问)\n任务目录: {taskDir}";
+                            _statusLabel.Text = "状态: 运行中";
                             _statusLabel.ForeColor = Color.Green;
+                            _apiUrlTextBox.Text = $"http://{localIp}:{_service.Port}/wordapi";
+                            _docsUrlTextBox.Text = $"http://{localIp}:{_service.Port}/docs";
+                            _copyUrlButton.Enabled = true;
+                            _copyDocsButton.Enabled = true;
                             _portInput.Enabled = false;
                             _taskDirInput.Enabled = false;
                             _uploadDirInput.Enabled = false;
@@ -583,6 +860,10 @@ namespace WordApiService
                             _startButton.Enabled = true;
                             _statusLabel.Text = "状态: 已停止";
                             _statusLabel.ForeColor = Color.Gray;
+                            _apiUrlTextBox.Text = "";
+                            _docsUrlTextBox.Text = "";
+                            _copyUrlButton.Enabled = false;
+                            _copyDocsButton.Enabled = false;
                             _portInput.Enabled = true;
                             _taskDirInput.Enabled = true;
                             _uploadDirInput.Enabled = true;
@@ -611,10 +892,24 @@ namespace WordApiService
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            // 如果是用户点击关闭按钮，最小化到托盘而不是退出
+            if (e.CloseReason == CloseReason.UserClosing)
+            {
+                e.Cancel = true;
+                this.Hide();
+                _notifyIcon.ShowBalloonTip(2000, "Word API 服务", "程序已最小化到系统托盘", ToolTipIcon.Info);
+                return;
+            }
+            
+            // 如果是真正退出（从托盘菜单退出），停止服务
             if (_service.IsRunning)
             {
                 Task.Run(async () => await _service.StopAsync()).Wait(3000);
             }
+            
+            _notifyIcon.Visible = false;
+            _notifyIcon.Dispose();
+            
             base.OnFormClosing(e);
         }
     }

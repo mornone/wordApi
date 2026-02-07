@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word API 服务 - 接口文档</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        .section {
+            background: white;
+            padding: 30px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+        h3 {
+            color: #764ba2;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        .endpoint {
+            background: #f8f9fa;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .method {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-right: 10px;
+            font-size: 0.9em;
+        }
+        .method.post {
+            background: #28a745;
+            color: white;
+        }
+        .method.get {
+            background: #007bff;
+            color: white;
+        }
+        .url {
+            font-family: 'Courier New', monospace;
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            word-break: break-all;
+        }
+        .params {
+            margin: 15px 0;
+        }
+        .param-item {
+            background: white;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+        }
+        .param-name {
+            font-weight: bold;
+            color: #667eea;
+        }
+        .param-type {
+            color: #6c757d;
+            font-size: 0.9em;
+            margin-left: 10px;
+        }
+        .required {
+            color: #dc3545;
+            font-size: 0.8em;
+            margin-left: 5px;
+        }
+        .example {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .example pre {
+            margin: 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        .response {
+            margin: 15px 0;
+        }
+        .status-code {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 3px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .status-200 {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-400 {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status-404 {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .status-500 {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+            margin-top: 40px;
+        }
+        .note {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        .note strong {
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📄 Word API 服务</h1>
+            <p>Word 文档处理与转换 API 接口文档</p>
+        </header>
+
+        <div class="section">
+            <h2>📖 概述</h2>
+            <p>Word API 服务提供 Word 文档的处理和转换功能，支持：</p>
+            <ul style="margin: 15px 0 15px 30px;">
+                <li>上传 Word 文档（.docx）</li>
+                <li>自动更新文档中的域和目录</li>
+                <li>导出为 DOCX 和 PDF 格式</li>
+                <li>异步任务处理</li>
+                <li>文件下载</li>
+            </ul>
+            
+            <div class="note">
+                <strong>注意：</strong> 所有接口均支持局域网访问，请使用服务器的局域网 IP 地址。
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🔌 接口列表</h2>
+
+            <!-- 接口 1: 上传文档 -->
+            <div class="endpoint">
+                <h3>
+                    <span class="method post">POST</span>
+                    上传并处理 Word 文档
+                </h3>
+                <div class="url">/wordapi</div>
+                
+                <h4>请求参数</h4>
+                <div class="params">
+                    <div class="param-item">
+                        <span class="param-name">InputFile</span>
+                        <span class="param-type">File</span>
+                        <span class="required">必填</span>
+                        <p style="margin-top: 5px; color: #6c757d;">要处理的 Word 文档文件（.docx 格式）</p>
+                    </div>
+                </div>
+
+                <h4>请求示例（使用 multipart/form-data）</h4>
+                <div class="example">
+                    <pre>POST http://192.168.1.100:5000/wordapi
+Content-Type: multipart/form-data
+
+InputFile: [选择文件]</pre>
+                </div>
+
+                <h4>cURL 示例</h4>
+                <div class="example">
+                    <pre>curl -X POST http://192.168.1.100:5000/wordapi \
+  -F "InputFile=@/path/to/document.docx"</pre>
+                </div>
+
+                <h4>响应</h4>
+                <div class="response">
+                    <span class="status-code status-200">200 OK</span>
+                    <p style="margin: 10px 0;">任务创建成功</p>
+                    <div class="example">
+                        <pre>{
+  "status": "queued",
+  "taskId": "38537043-0a96-4234-82b3-194b22312e35"
+}</pre>
+                    </div>
+                </div>
+
+                <div class="response">
+                    <span class="status-code status-400">400 Bad Request</span>
+                    <p style="margin: 10px 0;">请求参数错误</p>
+                    <div class="example">
+                        <pre>{
+  "error": "InputFile is required."
+}</pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 接口 2: 查询任务状态 -->
+            <div class="endpoint">
+                <h3>
+                    <span class="method get">GET</span>
+                    查询任务状态和结果
+                </h3>
+                <div class="url">/wordapi?taskId={taskId}</div>
+                
+                <h4>请求参数</h4>
+                <div class="params">
+                    <div class="param-item">
+                        <span class="param-name">taskId</span>
+                        <span class="param-type">String</span>
+                        <span class="required">必填</span>
+                        <p style="margin-top: 5px; color: #6c757d;">上传文档时返回的任务 ID</p>
+                    </div>
+                </div>
+
+                <h4>请求示例</h4>
+                <div class="example">
+                    <pre>GET http://192.168.1.100:5000/wordapi?taskId=38537043-0a96-4234-82b3-194b22312e35</pre>
+                </div>
+
+                <h4>cURL 示例</h4>
+                <div class="example">
+                    <pre>curl -X GET "http://192.168.1.100:5000/wordapi?taskId=38537043-0a96-4234-82b3-194b22312e35"</pre>
+                </div>
+
+                <h4>响应</h4>
+                <div class="response">
+                    <span class="status-code status-200">200 OK</span>
+                    <p style="margin: 10px 0;">任务排队中</p>
+                    <div class="example">
+                        <pre>{
+  "taskId": "38537043-0a96-4234-82b3-194b22312e35",
+  "status": "queued",
+  "result": null
+}</pre>
+                    </div>
+                </div>
+
+                <div class="response">
+                    <span class="status-code status-200">200 OK</span>
+                    <p style="margin: 10px 0;">任务处理中</p>
+                    <div class="example">
+                        <pre>{
+  "taskId": "38537043-0a96-4234-82b3-194b22312e35",
+  "status": "running",
+  "result": null
+}</pre>
+                    </div>
+                </div>
+
+                <div class="response">
+                    <span class="status-code status-200">200 OK</span>
+                    <p style="margin: 10px 0;">任务完成</p>
+                    <div class="example">
+                        <pre>{
+  "taskId": "38537043-0a96-4234-82b3-194b22312e35",
+  "status": "completed",
+  "result": {
+    "docx": "/files/2026/0206/38537043-0a96-4234-82b3-194b22312e35.docx",
+    "pdf": "/files/2026/0206/38537043-0a96-4234-82b3-194b22312e35.pdf"
+  }
+}</pre>
+                    </div>
+                </div>
+
+                <div class="response">
+                    <span class="status-code status-200">200 OK</span>
+                    <p style="margin: 10px 0;">任务失败</p>
+                    <div class="example">
+                        <pre>{
+  "taskId": "38537043-0a96-4234-82b3-194b22312e35",
+  "status": "failed",
+  "result": {
+    "error": "错误信息"
+  }
+}</pre>
+                    </div>
+                </div>
+
+                <div class="response">
+                    <span class="status-code status-404">404 Not Found</span>
+                    <p style="margin: 10px 0;">任务不存在</p>
+                    <div class="example">
+                        <pre>{
+  "error": "taskId not found."
+}</pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 接口 3: 下载文件 -->
+            <div class="endpoint">
+                <h3>
+                    <span class="method get">GET</span>
+                    下载处理后的文件
+                </h3>
+                <div class="url">/files/{year}/{day}/{filename}</div>
+                
+                <h4>请求参数</h4>
+                <div class="params">
+                    <div class="param-item">
+                        <span class="param-name">year</span>
+                        <span class="param-type">String</span>
+                        <span class="required">必填</span>
+                        <p style="margin-top: 5px; color: #6c757d;">年份（4位数字，如 2026）</p>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">day</span>
+                        <span class="param-type">String</span>
+                        <span class="required">必填</span>
+                        <p style="margin-top: 5px; color: #6c757d;">月日（4位数字，如 0206）</p>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">filename</span>
+                        <span class="param-type">String</span>
+                        <span class="required">必填</span>
+                        <p style="margin-top: 5px; color: #6c757d;">文件名（包含扩展名）</p>
+                    </div>
+                </div>
+
+                <h4>请求示例</h4>
+                <div class="example">
+                    <pre>GET http://192.168.1.100:5000/files/2026/0206/38537043-0a96-4234-82b3-194b22312e35.docx</pre>
+                </div>
+
+                <h4>cURL 示例</h4>
+                <div class="example">
+                    <pre>curl -O http://192.168.1.100:5000/files/2026/0206/38537043-0a96-4234-82b3-194b22312e35.docx</pre>
+                </div>
+
+                <h4>响应</h4>
+                <div class="response">
+                    <span class="status-code status-200">200 OK</span>
+                    <p style="margin: 10px 0;">返回文件内容（自动下载）</p>
+                    <p style="margin: 10px 0; color: #6c757d;">Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document（DOCX）</p>
+                    <p style="margin: 10px 0; color: #6c757d;">Content-Type: application/pdf（PDF）</p>
+                </div>
+
+                <div class="response">
+                    <span class="status-code status-404">404 Not Found</span>
+                    <p style="margin: 10px 0;">文件不存在</p>
+                    <div class="example">
+                        <pre>{
+  "error": "File not found."
+}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📝 使用流程</h2>
+            <ol style="margin: 15px 0 15px 30px; line-height: 2;">
+                <li><strong>上传文档：</strong>使用 POST /wordapi 上传 Word 文档，获得 taskId</li>
+                <li><strong>轮询状态：</strong>使用 GET /wordapi?taskId={taskId} 查询任务状态</li>
+                <li><strong>下载文件：</strong>当状态为 "completed" 时，使用返回的 URL 下载处理后的文件</li>
+            </ol>
+
+            <h3>完整示例（JavaScript）</h3>
+            <div class="example">
+                <pre>// 1. 上传文档
+const formData = new FormData();
+formData.append('InputFile', fileInput.files[0]);
+
+const uploadResponse = await fetch('http://192.168.1.100:5000/wordapi', {
+  method: 'POST',
+  body: formData
+});
+const { taskId } = await uploadResponse.json();
+
+// 2. 轮询任务状态
+let status = 'queued';
+while (status === 'queued' || status === 'running') {
+  await new Promise(resolve => setTimeout(resolve, 2000)); // 等待2秒
+  
+  const statusResponse = await fetch(`http://192.168.1.100:5000/wordapi?taskId=${taskId}`);
+  const data = await statusResponse.json();
+  status = data.status;
+  
+  if (status === 'completed') {
+    console.log('DOCX:', data.result.docx);
+    console.log('PDF:', data.result.pdf);
+    
+    // 3. 下载文件
+    window.open(`http://192.168.1.100:5000${data.result.docx}`);
+    window.open(`http://192.168.1.100:5000${data.result.pdf}`);
+  } else if (status === 'failed') {
+    console.error('任务失败:', data.result.error);
+  }
+}</pre>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>⚙️ 任务状态说明</h2>
+            <div class="params">
+                <div class="param-item">
+                    <span class="param-name">queued</span>
+                    <p style="margin-top: 5px; color: #6c757d;">任务已创建，等待处理</p>
+                </div>
+                <div class="param-item">
+                    <span class="param-name">running</span>
+                    <p style="margin-top: 5px; color: #6c757d;">任务正在处理中</p>
+                </div>
+                <div class="param-item">
+                    <span class="param-name">completed</span>
+                    <p style="margin-top: 5px; color: #6c757d;">任务处理完成，可以下载文件</p>
+                </div>
+                <div class="param-item">
+                    <span class="param-name">failed</span>
+                    <p style="margin-top: 5px; color: #6c757d;">任务处理失败，查看 result.error 获取错误信息</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>⚠️ 注意事项</h2>
+            <ul style="margin: 15px 0 15px 30px; line-height: 2;">
+                <li>仅支持 .docx 格式的 Word 文档</li>
+                <li>文件上传使用 multipart/form-data 格式</li>
+                <li>任务处理是异步的，需要轮询查询状态</li>
+                <li>建议轮询间隔为 2-5 秒</li>
+                <li>文件会按日期自动归档（年/月日）</li>
+                <li>服务器可能配置了自动清理策略，请及时下载文件</li>
+                <li>所有接口支持跨域访问（CORS）</li>
+            </ul>
+        </div>
+
+        <footer>
+            <p>© 2026 信安世纪 - Word API 服务</p>
+            <p style="margin-top: 10px;">
+                <a href="https://www.secdriver.com" style="color: #667eea; text-decoration: none;">www.secdriver.com</a>
+            </p>
+        </footer>
+    </div>
+</body>
+</html>
