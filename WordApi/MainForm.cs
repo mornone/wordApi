@@ -22,13 +22,18 @@ namespace WordApiService
         private Button _startButton = null!;
         private Button _copyUrlButton = null!;
         private Button _copyDocsButton = null!;
+        private Button _copyTokenButton = null!;
+        private Button _regenerateTokenButton = null!;
         private Label _statusLabel = null!;
         private Label _apiLabel = null!;
         private Label _docsLabel = null!;
+        private Label _tokenLabel = null!;
         private TextBox _apiUrlTextBox = null!;
         private TextBox _docsUrlTextBox = null!;
+        private TextBox _tokenTextBox = null!;
         private TextBox _logTextBox = null!;
         private NotifyIcon _notifyIcon = null!;
+        private string _apiToken = string.Empty;
 
         private const string AutoStartRegKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
         private const string AppName = "WordApiService";
@@ -37,6 +42,10 @@ namespace WordApiService
         {
             _service = new WordService();
             _service.OnLog += OnServiceLog;
+            
+            // 生成初始 Token
+            _apiToken = GenerateToken();
+            
             InitializeUI();  // 这里会加载窗口图标
             InitializeTrayIcon();  // 然后使用窗口图标初始化托盘
             LoadAutoStartStatus();
@@ -95,6 +104,12 @@ namespace WordApiService
             _logTextBox.AppendText(message + Environment.NewLine);
             _logTextBox.SelectionStart = _logTextBox.Text.Length;
             _logTextBox.ScrollToCaret();
+        }
+
+        private string GenerateToken()
+        {
+            // 生成 32 字符的随机 Token
+            return Guid.NewGuid().ToString("N");
         }
 
         private void InitializeTrayIcon()
@@ -215,12 +230,63 @@ namespace WordApiService
                 // 如果加载图标失败，使用默认图标
             }
 
+            // Token 标签
+            _tokenLabel = new Label
+            {
+                Text = "API Token:",
+                Left = 20,
+                Top = 20,
+                Width = 80
+            };
+            Controls.Add(_tokenLabel);
+
+            // Token 文本框
+            _tokenTextBox = new TextBox
+            {
+                Left = 110,
+                Top = 20,
+                Width = 200,
+                Height = 20,
+                ReadOnly = true,
+                BackColor = Color.White,
+                Text = _apiToken
+            };
+            Controls.Add(_tokenTextBox);
+
+            // 复制 Token 按钮
+            _copyTokenButton = new Button
+            {
+                Text = "复制",
+                Left = 320,
+                Top = 18,
+                Width = 50,
+                Height = 24,
+                Font = new Font(Font.FontFamily, 8),
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            _copyTokenButton.Click += CopyTokenButton_Click;
+            Controls.Add(_copyTokenButton);
+
+            // 重新生成 Token 按钮
+            _regenerateTokenButton = new Button
+            {
+                Text = "重新生成",
+                Left = 380,
+                Top = 18,
+                Width = 80,
+                Height = 24,
+                Font = new Font(Font.FontFamily, 8),
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            _regenerateTokenButton.Click += RegenerateTokenButton_Click;
+            Controls.Add(_regenerateTokenButton);
+
             // 端口配置
             var portLabel = new Label
             {
                 Text = "服务端口:",
                 Left = 20,
-                Top = 20,
+                Top = 55,
                 Width = 80
             };
             Controls.Add(portLabel);
@@ -228,7 +294,7 @@ namespace WordApiService
             _portInput = new NumericUpDown
             {
                 Left = 110,
-                Top = 20,
+                Top = 55,
                 Width = 290,
                 Minimum = 1000,
                 Maximum = 65535,
@@ -241,7 +307,7 @@ namespace WordApiService
             {
                 Text = "任务目录:",
                 Left = 20,
-                Top = 55,
+                Top = 90,
                 Width = 80
             };
             Controls.Add(taskDirLabel);
@@ -249,7 +315,7 @@ namespace WordApiService
             _taskDirInput = new TextBox
             {
                 Left = 110,
-                Top = 55,
+                Top = 90,
                 Width = 290,
                 Text = Path.Combine(AppContext.BaseDirectory, "Tasks")
             };
@@ -259,7 +325,7 @@ namespace WordApiService
             {
                 Text = "浏览",
                 Left = 410,
-                Top = 53,
+                Top = 88,
                 Width = 50,
                 Height = 25
             };
@@ -271,7 +337,7 @@ namespace WordApiService
             {
                 Text = "上传目录:",
                 Left = 20,
-                Top = 90,
+                Top = 125,
                 Width = 80
             };
             Controls.Add(uploadDirLabel);
@@ -279,7 +345,7 @@ namespace WordApiService
             _uploadDirInput = new TextBox
             {
                 Left = 110,
-                Top = 90,
+                Top = 125,
                 Width = 290,
                 Text = Path.Combine(AppContext.BaseDirectory, "Tasks", "uploads")
             };
@@ -289,7 +355,7 @@ namespace WordApiService
             {
                 Text = "浏览",
                 Left = 410,
-                Top = 88,
+                Top = 123,
                 Width = 50,
                 Height = 25
             };
@@ -301,7 +367,7 @@ namespace WordApiService
             {
                 Text = "输出目录:",
                 Left = 20,
-                Top = 125,
+                Top = 160,
                 Width = 80
             };
             Controls.Add(outputDirLabel);
@@ -309,7 +375,7 @@ namespace WordApiService
             _outputDirInput = new TextBox
             {
                 Left = 110,
-                Top = 125,
+                Top = 160,
                 Width = 290,
                 Text = Path.Combine(AppContext.BaseDirectory, "Tasks", "outputs")
             };
@@ -319,7 +385,7 @@ namespace WordApiService
             {
                 Text = "浏览",
                 Left = 410,
-                Top = 123,
+                Top = 158,
                 Width = 50,
                 Height = 25
             };
@@ -331,7 +397,7 @@ namespace WordApiService
             {
                 Text = "启用目录刷新（更新域和目录）",
                 Left = 20,
-                Top = 165,
+                Top = 200,
                 Width = 440,
                 Checked = true
             };
@@ -342,7 +408,7 @@ namespace WordApiService
             {
                 Text = "启用 PDF 转换",
                 Left = 20,
-                Top = 195,
+                Top = 230,
                 Width = 440,
                 Checked = true
             };
@@ -353,7 +419,7 @@ namespace WordApiService
             {
                 Text = "自动删除上传文件",
                 Left = 20,
-                Top = 225,
+                Top = 260,
                 Width = 200,
                 Checked = false
             };
@@ -365,7 +431,7 @@ namespace WordApiService
             {
                 Text = "自动删除输出文件",
                 Left = 240,
-                Top = 225,
+                Top = 260,
                 Width = 200,
                 Checked = false
             };
@@ -377,7 +443,7 @@ namespace WordApiService
             {
                 Text = "保留天数:",
                 Left = 20,
-                Top = 260,
+                Top = 295,
                 Width = 80
             };
             Controls.Add(deleteAfterDaysLabel);
@@ -385,7 +451,7 @@ namespace WordApiService
             _deleteAfterDaysInput = new NumericUpDown
             {
                 Left = 110,
-                Top = 258,
+                Top = 293,
                 Width = 80,
                 Minimum = 1,
                 Maximum = 365,
@@ -398,7 +464,7 @@ namespace WordApiService
             {
                 Text = "天（启用自动删除后生效）",
                 Left = 200,
-                Top = 260,
+                Top = 295,
                 Width = 260,
                 ForeColor = Color.Gray
             };
@@ -409,7 +475,7 @@ namespace WordApiService
             {
                 Text = "开机自动启动",
                 Left = 20,
-                Top = 295,
+                Top = 330,
                 Width = 440,
                 Checked = false
             };
@@ -421,7 +487,7 @@ namespace WordApiService
             {
                 Text = "启动服务",
                 Left = 20,
-                Top = 335,
+                Top = 370,
                 Width = 440,
                 Height = 40
             };
@@ -433,7 +499,7 @@ namespace WordApiService
             {
                 Text = "状态: 未启动",
                 Left = 20,
-                Top = 385,
+                Top = 420,
                 Width = 440,
                 Height = 20,
                 ForeColor = Color.Gray
@@ -445,7 +511,7 @@ namespace WordApiService
             {
                 Text = "API:",
                 Left = 20,
-                Top = 410,
+                Top = 445,
                 Width = 40,
                 Height = 20
             };
@@ -455,7 +521,7 @@ namespace WordApiService
             _apiUrlTextBox = new TextBox
             {
                 Left = 60,
-                Top = 410,
+                Top = 445,
                 Width = 300,
                 Height = 20,
                 ReadOnly = true,
@@ -467,9 +533,9 @@ namespace WordApiService
             // 复制 API 地址按钮
             _copyUrlButton = new Button
             {
-                Text = "copy",
+                Text = "复制",
                 Left = 370,
-                Top = 408,
+                Top = 443,
                 Width = 60,
                 Height = 24,
                 Enabled = false,
@@ -484,7 +550,7 @@ namespace WordApiService
             {
                 Text = "文档:",
                 Left = 20,
-                Top = 438,
+                Top = 473,
                 Width = 40,
                 Height = 20
             };
@@ -494,7 +560,7 @@ namespace WordApiService
             _docsUrlTextBox = new TextBox
             {
                 Left = 60,
-                Top = 438,
+                Top = 473,
                 Width = 300,
                 Height = 20,
                 ReadOnly = true,
@@ -506,9 +572,9 @@ namespace WordApiService
             // 复制文档地址按钮
             _copyDocsButton = new Button
             {
-                Text = "copy",
+                Text = "复制",
                 Left = 370,
-                Top = 436,
+                Top = 471,
                 Width = 60,
                 Height = 24,
                 Enabled = false,
@@ -523,7 +589,7 @@ namespace WordApiService
             {
                 Text = "运行日志:",
                 Left = 20,
-                Top = 470,
+                Top = 505,
                 Width = 100,
                 Height = 20
             };
@@ -532,9 +598,9 @@ namespace WordApiService
             _logTextBox = new TextBox
             {
                 Left = 20,
-                Top = 495,
+                Top = 530,
                 Width = 440,
-                Height = 155,
+                Height = 120,
                 Multiline = true,
                 ScrollBars = ScrollBars.Vertical,
                 ReadOnly = true,
@@ -761,6 +827,38 @@ namespace WordApiService
             }
         }
 
+        private void CopyTokenButton_Click(object? sender, EventArgs e)
+        {
+            try
+            {
+                Clipboard.SetText(_apiToken);
+                OnServiceLog($"已复制 Token 到剪贴板");
+                MessageBox.Show($"已复制 Token 到剪贴板:\n{_apiToken}", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"复制失败: {ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void RegenerateTokenButton_Click(object? sender, EventArgs e)
+        {
+            var result = MessageBox.Show(
+                "确定要重新生成 Token 吗？\n旧的 Token 将失效。",
+                "确认",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question
+            );
+
+            if (result == DialogResult.Yes)
+            {
+                _apiToken = GenerateToken();
+                _tokenTextBox.Text = _apiToken;
+                OnServiceLog($"已重新生成 Token: {_apiToken}");
+                MessageBox.Show("Token 已重新生成", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
         private void StartButton_Click(object? sender, EventArgs e)
         {
             if (!_service.IsRunning)
@@ -785,6 +883,7 @@ namespace WordApiService
 
                 // 启动服务
                 _service.Port = (int)_portInput.Value;
+                _service.ApiToken = _apiToken;
                 _service.EnableRefresh = _refreshCheckBox.Checked;
                 _service.EnablePdf = _pdfCheckBox.Checked;
                 _service.TaskDirectory = taskDir;

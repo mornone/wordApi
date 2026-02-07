@@ -15,11 +15,76 @@
             line-height: 1.6;
             color: #333;
             background: #f5f5f5;
+            padding-left: 0;
         }
         .container {
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
+            margin-left: 280px;
+        }
+        /* 侧边导航 */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 260px;
+            height: 100vh;
+            background: white;
+            box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            z-index: 1000;
+            padding: 20px;
+        }
+        .sidebar h3 {
+            color: #667eea;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+        .nav-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .nav-item {
+            margin-bottom: 8px;
+        }
+        .nav-link {
+            display: block;
+            padding: 8px 12px;
+            color: #555;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: all 0.3s;
+            font-size: 0.9em;
+        }
+        .nav-link:hover {
+            background: #f0f0f0;
+            color: #667eea;
+            padding-left: 16px;
+        }
+        .nav-link.active {
+            background: #667eea;
+            color: white;
+            font-weight: bold;
+        }
+        .nav-method {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.75em;
+            font-weight: bold;
+            margin-right: 6px;
+        }
+        .nav-method.post {
+            background: #28a745;
+            color: white;
+        }
+        .nav-method.get {
+            background: #007bff;
+            color: white;
         }
         header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -169,6 +234,14 @@
     </style>
 </head>
 <body>
+    <!-- 侧边导航 -->
+    <div class="sidebar">
+        <h3>📑 接口导航</h3>
+        <ul class="nav-list" id="navList">
+            <!-- 导航项将通过 JavaScript 自动生成 -->
+        </ul>
+    </div>
+
     <div class="container">
         <header>
             <h1>📄 Word API 服务</h1>
@@ -192,6 +265,35 @@
         </div>
 
         <div class="section">
+            <h2>🔐 身份认证</h2>
+            <p>所有 API 请求（上传和查询）都需要在 HTTP Header 中携带 Token 进行身份认证。</p>
+            
+            <h3>认证方式</h3>
+            <p>在请求头中添加 <code>Authorization</code> 字段：</p>
+            <div class="example">
+                <pre>Authorization: Bearer YOUR_API_TOKEN</pre>
+            </div>
+            
+            <h3>获取 Token</h3>
+            <p>Token 在服务启动时自动生成，可以在服务管理界面查看和复制。如需重新生成，点击"重新生成"按钮即可。</p>
+            
+            <h3>认证失败</h3>
+            <div class="response">
+                <span class="status-code status-401">401 Unauthorized</span>
+                <p style="margin: 10px 0;">Token 无效或缺失</p>
+                <div class="example">
+                    <pre>{
+  "error": "Unauthorized. Invalid or missing token."
+}</pre>
+                </div>
+            </div>
+            
+            <div class="note">
+                <strong>提示：</strong> 文档访问（/ 和 /docs）以及文件下载（/files）不需要 Token 认证。
+            </div>
+        </div>
+
+        <div class="section">
             <h2>🔌 接口列表</h2>
 
             <!-- 接口 1: 上传文档 -->
@@ -201,6 +303,16 @@
                     上传并处理 Word 文档
                 </h3>
                 <div class="url">/wordapi</div>
+                
+                <h4>请求头</h4>
+                <div class="params">
+                    <div class="param-item">
+                        <span class="param-name">Authorization</span>
+                        <span class="param-type">String</span>
+                        <span class="required">必填</span>
+                        <p style="margin-top: 5px; color: #6c757d;">格式：Bearer YOUR_API_TOKEN</p>
+                    </div>
+                </div>
                 
                 <h4>请求参数</h4>
                 <div class="params">
@@ -215,6 +327,7 @@
                 <h4>请求示例（使用 multipart/form-data）</h4>
                 <div class="example">
                     <pre>POST http://192.168.1.100:5000/wordapi
+Authorization: Bearer abc123def456...
 Content-Type: multipart/form-data
 
 InputFile: [选择文件]</pre>
@@ -223,6 +336,7 @@ InputFile: [选择文件]</pre>
                 <h4>cURL 示例</h4>
                 <div class="example">
                     <pre>curl -X POST http://192.168.1.100:5000/wordapi \
+  -H "Authorization: Bearer YOUR_API_TOKEN" \
   -F "InputFile=@/path/to/document.docx"</pre>
                 </div>
 
@@ -247,6 +361,16 @@ InputFile: [选择文件]</pre>
 }</pre>
                     </div>
                 </div>
+
+                <div class="response">
+                    <span class="status-code status-401">401 Unauthorized</span>
+                    <p style="margin: 10px 0;">Token 无效或缺失</p>
+                    <div class="example">
+                        <pre>{
+  "error": "Unauthorized. Invalid or missing token."
+}</pre>
+                    </div>
+                </div>
             </div>
 
             <!-- 接口 2: 查询任务状态 -->
@@ -256,6 +380,16 @@ InputFile: [选择文件]</pre>
                     查询任务状态和结果
                 </h3>
                 <div class="url">/wordapi?taskId={taskId}</div>
+                
+                <h4>请求头</h4>
+                <div class="params">
+                    <div class="param-item">
+                        <span class="param-name">Authorization</span>
+                        <span class="param-type">String</span>
+                        <span class="required">必填</span>
+                        <p style="margin-top: 5px; color: #6c757d;">格式：Bearer YOUR_API_TOKEN</p>
+                    </div>
+                </div>
                 
                 <h4>请求参数</h4>
                 <div class="params">
@@ -269,12 +403,14 @@ InputFile: [选择文件]</pre>
 
                 <h4>请求示例</h4>
                 <div class="example">
-                    <pre>GET http://192.168.1.100:5000/wordapi?taskId=38537043-0a96-4234-82b3-194b22312e35</pre>
+                    <pre>GET http://192.168.1.100:5000/wordapi?taskId=38537043-0a96-4234-82b3-194b22312e35
+Authorization: Bearer YOUR_API_TOKEN</pre>
                 </div>
 
                 <h4>cURL 示例</h4>
                 <div class="example">
-                    <pre>curl -X GET "http://192.168.1.100:5000/wordapi?taskId=38537043-0a96-4234-82b3-194b22312e35"</pre>
+                    <pre>curl -X GET "http://192.168.1.100:5000/wordapi?taskId=38537043-0a96-4234-82b3-194b22312e35" \
+  -H "Authorization: Bearer YOUR_API_TOKEN"</pre>
                 </div>
 
                 <h4>响应</h4>
@@ -327,6 +463,16 @@ InputFile: [选择文件]</pre>
   "result": {
     "error": "错误信息"
   }
+}</pre>
+                    </div>
+                </div>
+
+                <div class="response">
+                    <span class="status-code status-401">401 Unauthorized</span>
+                    <p style="margin: 10px 0;">Token 无效或缺失</p>
+                    <div class="example">
+                        <pre>{
+  "error": "Unauthorized. Invalid or missing token."
 }</pre>
                     </div>
                 </div>
@@ -405,19 +551,26 @@ InputFile: [选择文件]</pre>
         <div class="section">
             <h2>📝 使用流程</h2>
             <ol style="margin: 15px 0 15px 30px; line-height: 2;">
-                <li><strong>上传文档：</strong>使用 POST /wordapi 上传 Word 文档，获得 taskId</li>
-                <li><strong>轮询状态：</strong>使用 GET /wordapi?taskId={taskId} 查询任务状态</li>
-                <li><strong>下载文件：</strong>当状态为 "completed" 时，使用返回的 URL 下载处理后的文件</li>
+                <li><strong>获取 Token：</strong>从服务管理界面复制 API Token</li>
+                <li><strong>上传文档：</strong>使用 POST /wordapi 上传 Word 文档（需携带 Token），获得 taskId</li>
+                <li><strong>轮询状态：</strong>使用 GET /wordapi?taskId={taskId} 查询任务状态（需携带 Token）</li>
+                <li><strong>下载文件：</strong>当状态为 "completed" 时，使用返回的 URL 下载处理后的文件（不需要 Token）</li>
             </ol>
 
             <h3>完整示例（JavaScript）</h3>
             <div class="example">
-                <pre>// 1. 上传文档
+                <pre>// API Token（从服务管理界面获取）
+const API_TOKEN = 'YOUR_API_TOKEN';
+
+// 1. 上传文档
 const formData = new FormData();
 formData.append('InputFile', fileInput.files[0]);
 
 const uploadResponse = await fetch('http://192.168.1.100:5000/wordapi', {
   method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${API_TOKEN}`
+  },
   body: formData
 });
 const { taskId } = await uploadResponse.json();
@@ -427,7 +580,11 @@ let status = 'queued';
 while (status === 'queued' || status === 'running') {
   await new Promise(resolve => setTimeout(resolve, 2000)); // 等待2秒
   
-  const statusResponse = await fetch(`http://192.168.1.100:5000/wordapi?taskId=${taskId}`);
+  const statusResponse = await fetch(`http://192.168.1.100:5000/wordapi?taskId=${taskId}`, {
+    headers: {
+      'Authorization': `Bearer ${API_TOKEN}`
+    }
+  });
   const data = await statusResponse.json();
   status = data.status;
   
@@ -435,7 +592,7 @@ while (status === 'queued' || status === 'running') {
     console.log('DOCX:', data.result.docx);
     console.log('PDF:', data.result.pdf);
     
-    // 3. 下载文件
+    // 3. 下载文件（不需要 Token）
     window.open(`http://192.168.1.100:5000${data.result.docx}`);
     window.open(`http://192.168.1.100:5000${data.result.pdf}`);
   } else if (status === 'failed') {
@@ -470,6 +627,9 @@ while (status === 'queued' || status === 'running') {
         <div class="section">
             <h2>⚠️ 注意事项</h2>
             <ul style="margin: 15px 0 15px 30px; line-height: 2;">
+                <li><strong>所有 API 请求（上传和查询）都需要在 HTTP Header 中携带 Token 进行身份认证</strong></li>
+                <li>Token 格式：<code>Authorization: Bearer YOUR_API_TOKEN</code></li>
+                <li>文件下载和文档访问不需要 Token</li>
                 <li>仅支持 .docx 格式的 Word 文档</li>
                 <li>文件上传使用 multipart/form-data 格式</li>
                 <li>任务处理是异步的，需要轮询查询状态</li>
@@ -487,5 +647,121 @@ while (status === 'queued' || status === 'running') {
             </p>
         </footer>
     </div>
+
+    <script>
+        // 自动生成导航
+        function generateNavigation() {
+            const navList = document.getElementById('navList');
+            const endpoints = document.querySelectorAll('.endpoint');
+            
+            endpoints.forEach((endpoint, index) => {
+                // 为每个endpoint添加ID
+                const endpointId = `endpoint-${index}`;
+                endpoint.id = endpointId;
+                
+                // 获取方法和标题
+                const methodElement = endpoint.querySelector('.method');
+                const titleElement = endpoint.querySelector('h3');
+                
+                if (methodElement && titleElement) {
+                    const method = methodElement.textContent.trim().toLowerCase();
+                    const titleText = titleElement.textContent.replace(methodElement.textContent, '').trim();
+                    
+                    // 创建导航项
+                    const navItem = document.createElement('li');
+                    navItem.className = 'nav-item';
+                    
+                    const navLink = document.createElement('a');
+                    navLink.className = 'nav-link';
+                    navLink.href = `#${endpointId}`;
+                    navLink.innerHTML = `<span class="nav-method ${method}">${method.toUpperCase()}</span>${titleText}`;
+                    
+                    navItem.appendChild(navLink);
+                    navList.appendChild(navItem);
+                }
+            });
+            
+            // 为其他主要section添加导航
+            const sections = document.querySelectorAll('.section');
+            sections.forEach((section, index) => {
+                const h2 = section.querySelector('h2');
+                if (h2 && !section.querySelector('.endpoint')) {
+                    const sectionId = `section-${index}`;
+                    section.id = sectionId;
+                    
+                    const navItem = document.createElement('li');
+                    navItem.className = 'nav-item';
+                    
+                    const navLink = document.createElement('a');
+                    navLink.className = 'nav-link';
+                    navLink.href = `#${sectionId}`;
+                    navLink.textContent = h2.textContent;
+                    
+                    navItem.appendChild(navLink);
+                    
+                    // 将非接口的section插入到导航列表开头
+                    if (index < 3) {
+                        navList.insertBefore(navItem, navList.firstChild);
+                    } else {
+                        navList.appendChild(navItem);
+                    }
+                }
+            });
+        }
+        
+        // 滚动高亮
+        function highlightActiveNav() {
+            const navLinks = document.querySelectorAll('.nav-link');
+            const sections = document.querySelectorAll('.endpoint, .section');
+            
+            let currentSection = '';
+            
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                const sectionHeight = section.clientHeight;
+                
+                if (window.pageYOffset >= sectionTop - 100) {
+                    currentSection = section.getAttribute('id');
+                }
+            });
+            
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === `#${currentSection}`) {
+                    link.classList.add('active');
+                }
+            });
+        }
+        
+        // 平滑滚动
+        function smoothScroll() {
+            const navLinks = document.querySelectorAll('.nav-link');
+            
+            navLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const targetId = this.getAttribute('href').substring(1);
+                    const targetElement = document.getElementById(targetId);
+                    
+                    if (targetElement) {
+                        window.scrollTo({
+                            top: targetElement.offsetTop - 20,
+                            behavior: 'smooth'
+                        });
+                    }
+                });
+            });
+        }
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            generateNavigation();
+            smoothScroll();
+            highlightActiveNav();
+            
+            // 监听滚动事件
+            window.addEventListener('scroll', highlightActiveNav);
+        });
+    </script>
 </body>
 </html>

@@ -21,6 +21,7 @@ namespace WordApiService
         public bool EnableRefresh { get; set; } = true;
         public bool EnablePdf { get; set; } = true;
         public int Port { get; set; } = 5000;
+        public string ApiToken { get; set; } = string.Empty;
         public string TaskDirectory { get; set; } = string.Empty;
         public string UploadDirectory { get; set; } = string.Empty;
         public string OutputDirectory { get; set; } = string.Empty;
@@ -230,6 +231,16 @@ namespace WordApiService
                 var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
                 Log($"POST /wordapi - {clientIp} - 收到请求, ContentType: {context.Request.ContentType}");
                 
+                // Token 验证
+                var token = context.Request.Headers["Authorization"].FirstOrDefault()?.Replace("Bearer ", "");
+                if (string.IsNullOrEmpty(token) || token != ApiToken)
+                {
+                    Log($"POST /wordapi - {clientIp} - 401 Unauthorized: Invalid token");
+                    context.Response.StatusCode = 401;
+                    await context.Response.WriteAsJsonAsync(new { error = "Unauthorized. Invalid or missing token." });
+                    return;
+                }
+                
                 try
                 {
                     // 检查是否是文件上传请求
@@ -330,6 +341,17 @@ namespace WordApiService
             _app.MapGet("/wordapi", async (HttpContext context) =>
             {
                 var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                
+                // Token 验证
+                var token = context.Request.Headers["Authorization"].FirstOrDefault()?.Replace("Bearer ", "");
+                if (string.IsNullOrEmpty(token) || token != ApiToken)
+                {
+                    Log($"GET /wordapi - {clientIp} - 401 Unauthorized: Invalid token");
+                    context.Response.StatusCode = 401;
+                    await context.Response.WriteAsJsonAsync(new { error = "Unauthorized. Invalid or missing token." });
+                    return;
+                }
+                
                 var taskId = context.Request.Query["taskId"].ToString() ?? string.Empty;
                 
                 if (string.IsNullOrEmpty(taskId))
