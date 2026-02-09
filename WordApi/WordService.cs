@@ -79,6 +79,41 @@ namespace WordApiService
             return filePath;
         }
 
+        private string GetApiDocsHtml()
+        {
+            try
+            {
+                // 首先尝试从文件系统读取（开发环境）
+                var htmlPath = Path.Combine(AppContext.BaseDirectory, "api-docs.html");
+                if (File.Exists(htmlPath))
+                {
+                    return File.ReadAllText(htmlPath);
+                }
+                
+                // 从嵌入资源读取（发布环境）
+                var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                var resourceName = assembly.GetManifestResourceNames()
+                    .FirstOrDefault(r => r.EndsWith("api-docs.html"));
+                
+                if (resourceName != null)
+                {
+                    using var stream = assembly.GetManifestResourceStream(resourceName);
+                    if (stream != null)
+                    {
+                        using var reader = new StreamReader(stream);
+                        return reader.ReadToEnd();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"读取 API 文档失败: {ex.Message}");
+            }
+            
+            // 如果都失败，返回备用HTML
+            return GetFallbackHtml();
+        }
+
         private string GetFallbackHtml()
         {
             return @"
@@ -381,40 +416,22 @@ namespace WordApiService
             _app.MapGet("/", async (HttpContext context) =>
             {
                 var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                var htmlPath = Path.Combine(AppContext.BaseDirectory, "api-docs.html");
+                var htmlContent = GetApiDocsHtml();
                 
-                if (File.Exists(htmlPath))
-                {
-                    Log($"GET / - {clientIp} - 200 OK: API 文档");
-                    context.Response.ContentType = "text/html; charset=utf-8";
-                    await context.Response.SendFileAsync(htmlPath);
-                }
-                else
-                {
-                    Log($"GET / - {clientIp} - 200 OK: 备用文档");
-                    context.Response.ContentType = "text/html; charset=utf-8";
-                    await context.Response.WriteAsync(GetFallbackHtml());
-                }
+                Log($"GET / - {clientIp} - 200 OK: API 文档");
+                context.Response.ContentType = "text/html; charset=utf-8";
+                await context.Response.WriteAsync(htmlContent);
             });
 
             // API 文档端点 - /docs 路径
             _app.MapGet("/docs", async (HttpContext context) =>
             {
                 var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                var htmlPath = Path.Combine(AppContext.BaseDirectory, "api-docs.html");
+                var htmlContent = GetApiDocsHtml();
                 
-                if (File.Exists(htmlPath))
-                {
-                    Log($"GET /docs - {clientIp} - 200 OK: API 文档");
-                    context.Response.ContentType = "text/html; charset=utf-8";
-                    await context.Response.SendFileAsync(htmlPath);
-                }
-                else
-                {
-                    Log($"GET /docs - {clientIp} - 200 OK: 备用文档");
-                    context.Response.ContentType = "text/html; charset=utf-8";
-                    await context.Response.WriteAsync(GetFallbackHtml());
-                }
+                Log($"GET /docs - {clientIp} - 200 OK: API 文档");
+                context.Response.ContentType = "text/html; charset=utf-8";
+                await context.Response.WriteAsync(htmlContent);
             });
 
             // 静态文件服务 - 提供输出文件下载

@@ -116,31 +116,32 @@ namespace WordApiService
         {
             _notifyIcon = new NotifyIcon();
             
-            // 设置托盘图标，使用与窗口相同的图标
+            // 设置托盘图标，直接从文件加载
             try
             {
-                if (this.Icon != null)
+                var iconPath = Path.Combine(AppContext.BaseDirectory, "icon.ico");
+                if (File.Exists(iconPath))
                 {
+                    _notifyIcon.Icon = new Icon(iconPath);
+                }
+                else if (this.Icon != null)
+                {
+                    // 如果文件不存在，使用窗口图标
                     _notifyIcon.Icon = this.Icon;
                 }
                 else
                 {
-                    // 如果窗口图标未加载，尝试从嵌入资源加载
+                    // 最后尝试从嵌入资源加载
                     var assembly = System.Reflection.Assembly.GetExecutingAssembly();
-                    string[] possibleNames = new[]
-                    {
-                        "WordApiService.icon.ico",
-                        "MyApp.icon.ico",
-                        "icon.ico"
-                    };
-
-                    foreach (var resourceName in possibleNames)
+                    var resourceName = assembly.GetManifestResourceNames()
+                        .FirstOrDefault(r => r.EndsWith("icon.ico"));
+                    
+                    if (resourceName != null)
                     {
                         using var stream = assembly.GetManifestResourceStream(resourceName);
                         if (stream != null)
                         {
                             _notifyIcon.Icon = new Icon(stream);
-                            break;
                         }
                     }
                     
@@ -151,8 +152,9 @@ namespace WordApiService
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                OnServiceLog($"加载托盘图标失败: {ex.Message}");
                 _notifyIcon.Icon = SystemIcons.Application;
             }
             
@@ -202,32 +204,34 @@ namespace WordApiService
             MaximizeBox = false;
             MinimizeBox = true;
 
-            // 设置窗口图标（从嵌入资源加载）
+            // 设置窗口图标
             try
             {
-                var assembly = System.Reflection.Assembly.GetExecutingAssembly();
-                
-                // 尝试多个可能的资源名称
-                string[] possibleNames = new[]
+                var iconPath = Path.Combine(AppContext.BaseDirectory, "icon.ico");
+                if (File.Exists(iconPath))
                 {
-                    "WordApiService.icon.ico",
-                    "MyApp.icon.ico",
-                    "icon.ico"
-                };
-
-                foreach (var resourceName in possibleNames)
+                    Icon = new Icon(iconPath);
+                }
+                else
                 {
-                    using var stream = assembly.GetManifestResourceStream(resourceName);
-                    if (stream != null)
+                    // 尝试从嵌入资源加载
+                    var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                    var resourceName = assembly.GetManifestResourceNames()
+                        .FirstOrDefault(r => r.EndsWith("icon.ico"));
+                    
+                    if (resourceName != null)
                     {
-                        Icon = new Icon(stream);
-                        break;
+                        using var stream = assembly.GetManifestResourceStream(resourceName);
+                        if (stream != null)
+                        {
+                            Icon = new Icon(stream);
+                        }
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // 如果加载图标失败，使用默认图标
+                OnServiceLog($"加载窗口图标失败: {ex.Message}");
             }
 
             // Token 标签
